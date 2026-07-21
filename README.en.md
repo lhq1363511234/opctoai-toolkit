@@ -1,5 +1,8 @@
 # opcToai Toolkit
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![LINUX DO](https://img.shields.io/badge/LINUX%20DO-Community-0a66c2)](https://linux.do)
+
 [中文说明](README.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE) · [LINUX DO](https://linux.do)
 
 A Docker Compose monorepo that packages independently deployable tools behind one gateway:
