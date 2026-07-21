@@ -1,0 +1,43 @@
+name: opctoai-toolkit
+
+services:
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "${TOOLKIT_PORT:-8080}:80"
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      smtp:
+        condition: service_started
+      grok:
+        condition: service_started
+    restart: unless-stopped
+
+  smtp:
+    build:
+      context: ./apps/smtp
+    env_file:
+      - ./config/smtp/.env
+    volumes:
+      - smtp-data:/var/lib/smtp-console
+      - mail-console-data:/var/lib/mail-console
+    restart: unless-stopped
+
+  grok:
+    build:
+      context: ./apps/grok
+    environment:
+      HOST: 0.0.0.0
+      PORT: "18425"
+      GROK_CONFIG_FILE: /data/config.json
+      GROK_DATA_DIR: /data
+      GROK_CPA_DIR: /data/cpa_auths
+    volumes:
+      - ./config/grok:/data
+    shm_size: 1gb
+    restart: unless-stopped
+
+volumes:
+  smtp-data:
+  mail-console-data:

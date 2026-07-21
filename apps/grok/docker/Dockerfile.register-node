@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1.7
+FROM docker.io/cirstein/grok-register:slim
+
+USER root
+WORKDIR /app
+
+# Fix runtime libs found missing in slim image selfcheck: tkinter/Tk.
+# Keep this separate from the original Dockerfile.slim so existing web image is untouched.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-tk \
+    tk \
+    tcl \
+    libtk8.6 \
+    libtcl8.6 \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY fleet_register_agent.py /app/fleet_register_agent.py
+
+ENV FLEET_HUB=https://fleet.opctoai.xyz \
+    NODE_SECRET=renderdeploy-node \
+    NODE_ROLE=register \
+    NODE_NAME=grok-register-node \
+    MAIL_API_BASE=https://mail.opctoai.xyz \
+    CLOUDFLARE_API_BASE=https://mail.opctoai.xyz \
+    PORT=10000 \
+    DISPLAY=:99 \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 10000
+CMD ["python", "/app/fleet_register_agent.py"]

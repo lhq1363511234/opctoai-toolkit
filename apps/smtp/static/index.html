@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>统一邮件控制台</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #121a2b;
+      --line: rgba(255,255,255,.08);
+      --text: #e8eefc;
+      --muted: #93a0b8;
+      --accent: #0a84ff;
+      --ok: #30d158;
+      --bad: #ff453a;
+      --warn: #ffd60a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2744 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 14px 48px; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .sub { color: var(--muted); margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .tab {
+      border: 1px solid var(--line); background: transparent; color: var(--text);
+      border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 600;
+    }
+    .tab.active { background: var(--accent); border-color: transparent; }
+    .grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: color-mix(in srgb, var(--card) 92%, black);
+      border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input, textarea, select {
+      width: 100%; border: 1px solid var(--line); background: #0d1526; color: var(--text);
+      border-radius: 10px; padding: 10px 12px; outline: none;
+    }
+    textarea { min-height: 140px; resize: vertical; }
+    .btn {
+      border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 600;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .btn-danger { background: rgba(255,69,58,.15); color: #ff8a84; border: 1px solid rgba(255,69,58,.25); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+      padding: 4px 10px; font-size: 12px; border: 1px solid var(--line); color: var(--muted);
+    }
+    .badge.ok { color: var(--ok); border-color: rgba(48,209,88,.3); }
+    .badge.bad { color: var(--bad); border-color: rgba(255,69,58,.3); }
+    .kv { font-size: 13px; line-height: 1.7; color: var(--muted); }
+    .kv b { color: var(--text); font-weight: 600; }
+    .msg { margin-top: 10px; font-size: 13px; min-height: 20px; }
+    .msg.ok { color: var(--ok); }
+    .msg.bad { color: var(--bad); }
+    .hidden { display: none !important; }
+    .mailbox-list, .msg-list, .log {
+      max-height: 360px; overflow: auto; border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px;
+    }
+    .item {
+      border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
+      background: rgba(255,255,255,.02); cursor: pointer;
+    }
+    .item.active { border-color: rgba(10,132,255,.55); box-shadow: 0 0 0 1px rgba(10,132,255,.2) inset; }
+    .item .title { font-weight: 650; font-size: 13px; word-break: break-all; }
+    .item .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .code-pill {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+      background: rgba(48,209,88,.12); color: var(--ok); border: 1px solid rgba(48,209,88,.28);
+      border-radius: 999px; padding: 4px 10px; font-weight: 700; letter-spacing: .4px;
+    }
+    .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    @media (max-width: 700px) { .provider-grid { grid-template-columns: 1fr; } }
+    .provider-chip {
+      border: 1px solid var(--line); border-radius: 12px; padding: 10px; font-size: 12px; color: var(--muted);
+    }
+    .provider-chip b { color: var(--text); display:block; margin-bottom: 4px; }
+    .detail {
+      white-space: pre-wrap; word-break: break-word; background: #0d1526; border: 1px solid var(--line);
+      border-radius: 12px; padding: 12px; min-height: 160px; font-size: 13px; line-height: 1.55;
+    }
+    .flex1 { flex: 1 1 180px; }
+    .actions { display:flex; gap:8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>统一邮件控制台</h1>
+    <div class="sub">
+      收件：OPC / Mail.tm / DuckMail / TempMail.io 一键建号、自动提取验证码，方便手动注册 GPT / Grok。<br/>
+      发件：复用 Feishu SMTP（api@opctoai.com）与 Tele-OPC 客户发信。
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="recv" type="button">收件 / 验证码</button>
+      <button class="tab" data-tab="send" type="button">发件</button>
+      <button class="tab" data-tab="providers" type="button">服务状态</button>
+    </div>
+
+    <!-- RECV -->
+    <div id="panel-recv" class="grid">
+      <div class="card">
+        <div class="row">
+          <span id="recvStatus" class="badge">准备就绪</span>
+          <button class="btn btn-ghost" id="refreshBoxesBtn" type="button">刷新邮箱列表</button>
+          <button class="btn btn-ghost" id="refreshMsgsBtn" type="button">刷新收件</button>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;color:var(--muted);font-size:12px;">
+            <input id="autoRefresh" type="checkbox" checked style="width:auto;" /> 3s 自动刷新
+          </label>
+        </div>
+
+        <div class="row">
+          <div class="flex1">
+            <label>邮箱服务</label>
+            <select id="providerSelect">
+              <option value="opctoai">OPC Mail (opctoai.xyz)</option>
+              <option value="mailtm">Mail.tm</option>
+              <option value="duckmail">DuckMail</option>
+              <option value="tempmailio">TempMail.io</option>
+            </select>
+          </div>
+          <div class="flex1">
+            <label>域名（可空=自动）</label>
+            <select id="domainSelect"><option value="">自动</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="flex1">
+            <label>自定义前缀（可空）</label>
+            <input id="nameInput" placeholder="例如 gptmanual01" />
+          </div>
+          <div class="flex1">
+            <label>备注（可空）</label>
+            <input id="labelInput" placeholder="手动注册 Grok" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="createBoxBtn" type="button">创建临时邮箱</button>
+          <button class="btn btn-ghost" id="copyAddrBtn" type="button">复制当前邮箱</button>
+          <button class="btn btn-ghost" id="copyCodeBtn" type="button">复制验证码</button>
+          <button class="btn btn-danger" id="deleteBoxBtn" type="button">删除当前</button>
+        </div>
+        <div id="recvMsg" class="msg"></div>
+
+        <div class="mailbox-list" id="mailboxList"></div>
+      </div>
+
+      <div class="card">
+        <div class="kv">
+          当前邮箱：<b id="currentAddr">未选择</b><br/>
+          服务：<b id="currentProvider">-</b><br/>
+          最近验证码：<b id="currentCode">-</b>
+        </div>
+        <div id="codePill" class="code-pill hidden">CODE</div>
+        <div class="msg-list" id="messageList"></div>
+        <div style="margin-top:12px;">
+          <label>邮件正文</label>
+          <div id="messageDetail" class="detail">选择一封邮件查看内容 / 验证码</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEND -->
+    <div id="panel-send" class="grid hidden">
+      <div class="card">
+        <div class="row">
+          <span id="sendStatus" class="badge">检测中</span>
+          <button class="btn btn-ghost" id="testBtn" type="button">测试 SMTP</button>
+          <button class="btn btn-ghost" id="refreshSendBtn" type="button">刷新状态</button>
+        </div>
+        <div class="row">
+          <div style="flex:1 1 100%">
+            <label>收件人（多个用逗号/空格分隔）</label>
+            <input id="toInput" placeholder="customer@example.com" />
+          </div>
+        </div>
+        <div class="row">
+          <div style="flex:1 1 100%">
+            <label>抄送（可选）</label>
+            <input id="ccInput" placeholder="可留空；多个用逗号分隔" />
+          </div>
+        </div>
+        <div class="row">
+          <div style="flex:1 1 100%">
+            <label>主题</label>
+            <input id="subjectInput" placeholder="例如：账号开通通知" />
+          </div>
+        </div>
+        <div class="row">
+          <div style="flex:1 1 100%">
+            <label>正文（纯文本）</label>
+            <textarea id="textInput" placeholder="邮件正文（必填）"></textarea>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" id="sendBtn" type="button">直接 SMTP 发送</button>
+          <button class="btn btn-ghost" id="teleopcSendBtn" type="button">经 Tele-OPC 发送</button>
+          <button class="btn btn-ghost" id="fillCurrentBoxBtn" type="button">填入当前临时邮箱</button>
+        </div>
+        <div id="sendMsg" class="msg"></div>
+      </div>
+      <div class="card">
+        <div class="kv" id="smtpInfo">加载中...</div>
+        <div class="log" id="sendLog"></div>
+      </div>
+    </div>
+
+    <!-- PROVIDERS -->
+    <div id="panel-providers" class="hidden">
+      <div class="card">
+        <div class="row">
+          <button class="btn btn-primary" id="checkProvidersBtn" type="button">检测全部服务</button>
+          <span id="providerMsg" class="msg" style="margin:0;"></span>
+        </div>
+        <div class="provider-grid" id="providerGrid"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const state = {
+  boxes: [],
+  currentId: null,
+  messages: [],
+  currentMsgId: null,
+  timer: null,
+};
+
+function $(id){ return document.getElementById(id); }
+function setBadge(el, ok, text){
+  el.className = 'badge ' + (ok ? 'ok' : 'bad');
+  el.textContent = text;
+}
+function setMsg(el, ok, text){
+  el.className = 'msg ' + (ok ? 'ok' : 'bad');
+  el.textContent = text || '';
+}
+const API_BASE = (() => {
+  // page at /smtp/ => /smtp ; page at / => ''
+  let p = window.location.pathname || '/';
+  if (p.endsWith('/')) p = p.slice(0, -1);
+  return p;
+})();
+function apiUrl(path){
+  if (!path) return API_BASE || '/';
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith('/')) return (API_BASE || '') + path;
+  return (API_BASE ? API_BASE + '/' : '/') + path;
+}
+async function api(path, opts={}){
+  const res = await fetch(apiUrl(path), {
+    headers: { 'Content-Type': 'application/json', ...(opts.headers||{}) },
+    ...opts,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || data.message || (`HTTP ${res.status}`));
+  }
+  return data;
+}
+function currentBox(){
+  return state.boxes.find(x => x.id === state.currentId) || null;
+}
+async function copyText(text){
+  if (!text) return false;
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch { return false; }
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
+  $('panel-recv').classList.toggle('hidden', name !== 'recv');
+  $('panel-send').classList.toggle('hidden', name !== 'send');
+  $('panel-providers').classList.toggle('hidden', name !== 'providers');
+}
+
+async function loadDomains(){
+  const provider = $('providerSelect').value;
+  const sel = $('domainSelect');
+  sel.innerHTML = '<option value="">自动</option>';
+  try {
+    const data = await api(`/api/providers/${provider}/domains`);
+    (data.domains || []).forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d; sel.appendChild(opt);
+    });
+  } catch (e) {
+    // ignore
+  }
+}
+
+function renderBoxes(){
+  const list = $('mailboxList');
+  if (!state.boxes.length) {
+    list.innerHTML = '<div class="meta" style="color:var(--muted);font-size:13px;">还没有邮箱，先点“创建临时邮箱”。</div>';
+    return;
+  }
+  list.innerHTML = state.boxes.map(box => {
+    const active = box.id === state.currentId ? 'active' : '';
+    const code = box.last_code ? `<div class="code-pill">${box.last_code}</div>` : '';
+    return `<div class="item ${active}" data-id="${box.id}">
+      <div class="title">${box.address}</div>
+      <div class="meta">${box.provider}${box.label ? ' · ' + box.label : ''}${box.last_checked_at ? ' · ' + box.last_checked_at : ''}</div>
+      ${code}
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', () => {
+      state.currentId = el.dataset.id;
+      renderBoxes();
+      refreshMessages();
+    });
+  });
+}
+
+function renderMessages(){
+  const box = currentBox();
+  $('currentAddr').textContent = box ? box.address : '未选择';
+  $('currentProvider').textContent = box ? box.provider : '-';
+  const latestCode = (state.messages.find(m => m.code)?.code) || box?.last_code || '';
+  $('currentCode').textContent = latestCode || '-';
+  if (latestCode) {
+    $('codePill').classList.remove('hidden');
+    $('codePill').textContent = latestCode;
+  } else {
+    $('codePill').classList.add('hidden');
+  }
+
+  const list = $('messageList');
+  if (!state.messages.length) {
+    list.innerHTML = '<div class="meta" style="color:var(--muted);font-size:13px;">暂无邮件。手动注册后点刷新，或开启自动刷新。</div>';
+    $('messageDetail').textContent = '选择一封邮件查看内容 / 验证码';
+    return;
+  }
+  list.innerHTML = state.messages.map(m => {
+    const active = m.id === state.currentMsgId ? 'active' : '';
+    return `<div class="item ${active}" data-mid="${m.id}">
+      <div class="title">${m.subject || '(no subject)'}</div>
+      <div class="meta">${m.from || ''} · ${m.created_at || ''}</div>
+      ${m.code ? `<div class="code-pill">${m.code}</div>` : ''}
+      <div class="meta">${m.intro || ''}</div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', () => {
+      state.currentMsgId = el.dataset.mid;
+      const msg = state.messages.find(x => x.id === state.currentMsgId);
+      renderMessages();
+      if (msg) {
+        const body = msg.text || msg.html || msg.intro || '';
+        $('messageDetail').textContent =
+`From: ${msg.from || ''}
+Subject: ${msg.subject || ''}
+Time: ${msg.created_at || ''}
+Code: ${msg.code || '-'}
+
+${body}`;
+      }
+    });
+  });
+}
+
+async function loadBoxes(){
+  const data = await api('/api/mailboxes');
+  state.boxes = data.items || [];
+  if (!state.currentId && state.boxes[0]) state.currentId = state.boxes[0].id;
+  if (state.currentId && !state.boxes.find(x => x.id === state.currentId)) {
+    state.currentId = state.boxes[0]?.id || null;
+  }
+  renderBoxes();
+  if (state.currentId) await refreshMessages(false);
+  else renderMessages();
+}
+
+async function createBox(){
+  setMsg($('recvMsg'), true, '创建中...');
+  try {
+    const payload = {
+      provider: $('providerSelect').value,
+      domain: $('domainSelect').value || null,
+      name: $('nameInput').value.trim() || null,
+      label: $('labelInput').value.trim() || null,
+    };
+    const data = await api('/api/mailboxes', { method:'POST', body: JSON.stringify(payload) });
+    state.currentId = data.mailbox.id;
+    await loadBoxes();
+    setMsg($('recvMsg'), true, `已创建 ${data.mailbox.address}`);
+    await copyText(data.mailbox.address);
+  } catch (e) {
+    setMsg($('recvMsg'), false, e.message || String(e));
+  }
+}
+
+async function refreshMessages(showMsg=true){
+  const box = currentBox();
+  if (!box) return;
+  try {
+    if (showMsg) setBadge($('recvStatus'), true, '拉取中');
+    const data = await api(`/api/mailboxes/${encodeURIComponent(box.id)}/messages`);
+    state.messages = data.messages || [];
+    // update last_code in local list
+    const b = state.boxes.find(x => x.id === box.id);
+    if (b) {
+      b.last_code = data.mailbox?.last_code || '';
+      b.last_checked_at = new Date().toISOString();
+    }
+    if (!state.currentMsgId && state.messages[0]) state.currentMsgId = state.messages[0].id;
+    renderBoxes();
+    renderMessages();
+    if (showMsg) setBadge($('recvStatus'), true, `已刷新 · ${state.messages.length} 封`);
+    if (data.codes?.length && showMsg) setMsg($('recvMsg'), true, `验证码: ${data.codes[0]}`);
+  } catch (e) {
+    setBadge($('recvStatus'), false, '刷新失败');
+    if (showMsg) setMsg($('recvMsg'), false, e.message || String(e));
+  }
+}
+
+async function deleteCurrent(){
+  const box = currentBox();
+  if (!box) return;
+  await api(`/api/mailboxes/${encodeURIComponent(box.id)}`, { method:'DELETE' });
+  state.currentId = null;
+  state.messages = [];
+  await loadBoxes();
+  setMsg($('recvMsg'), true, '已删除');
+}
+
+function setupAutoRefresh(){
+  if (state.timer) { clearInterval(state.timer); state.timer = null; }
+  if ($('autoRefresh').checked) {
+    state.timer = setInterval(() => {
+      if (!$('panel-recv').classList.contains('hidden') && state.currentId) {
+        refreshMessages(false);
+      }
+    }, 3000);
+  }
+}
+
+async function loadSendStatus(){
+  try {
+    const data = await api('/api/status');
+    setBadge($('sendStatus'), !!data.ok, data.ok ? 'SMTP 正常' : 'SMTP 异常');
+    $('smtpInfo').innerHTML = `
+      发件服务：<b>Feishu SMTP</b><br/>
+      Host：<b>${data.smtp.host}:${data.smtp.port}</b> / secure=${data.smtp.secure}<br/>
+      From：<b>${data.smtp.from_name} &lt;${data.smtp.from}&gt;</b><br/>
+      User：<b>${data.smtp.user}</b><br/>
+      最近检查：<b>${data.check?.message || ''}</b> (${data.check?.latency_ms || '-'}ms)
+    `;
+    const logs = data.recent || [];
+    $('sendLog').innerHTML = logs.map(x => `<div class="log-item" style="padding:8px 0;border-bottom:1px solid var(--line);">
+      <div><b>${x.action}</b> · ${x.ok ? 'OK' : 'FAIL'} · ${x.ts || ''}</div>
+      <div style="color:var(--muted);">${x.subject || x.message || x.error || ''} ${(x.to||[]).join(', ')}</div>
+    </div>`).join('') || '<div style="color:var(--muted);">暂无发信日志</div>';
+  } catch (e) {
+    setBadge($('sendStatus'), false, '状态失败');
+    $('smtpInfo').textContent = e.message || String(e);
+  }
+}
+
+function parseEmails(text){
+  return (text || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+}
+function looksLikeEmail(v){
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v || '');
+}
+
+async function doSend(viaTele=false){
+  setMsg($('sendMsg'), true, '发送中...');
+  const to = parseEmails($('toInput').value);
+  const ccRaw = parseEmails($('ccInput').value);
+  const subject = ($('subjectInput').value || '').trim();
+  const text = $('textInput').value || '';
+  if (!to.length) { setMsg($('sendMsg'), false, '请填写收件人邮箱'); return; }
+  const badTo = to.filter(x => !looksLikeEmail(x));
+  if (badTo.length) { setMsg($('sendMsg'), false, '收件人无效: ' + badTo.join(', ')); return; }
+  const badCc = ccRaw.filter(x => !looksLikeEmail(x));
+  if (badCc.length) { setMsg($('sendMsg'), false, '抄送无效: ' + badCc.join(', ') + '（抄送可留空，不要填 1 这种测试字）'); return; }
+  if (!subject) { setMsg($('sendMsg'), false, '请填写主题'); return; }
+  if (!text.trim()) { setMsg($('sendMsg'), false, '请填写正文'); return; }
+  const payload = { to, cc: ccRaw, subject, text };
+  try {
+    const path = viaTele ? '/api/teleopc/send' : '/api/send';
+    const data = await api(path, { method:'POST', body: JSON.stringify(payload) });
+    setMsg($('sendMsg'), true, viaTele ? 'Tele-OPC 发送成功' : `SMTP 发送成功 ${data.message_id || ''}`);
+    await loadSendStatus();
+  } catch (e) {
+    setMsg($('sendMsg'), false, e.message || String(e));
+  }
+}
+
+async function checkProviders(){
+  setMsg($('providerMsg'), true, '检测中...');
+  try {
+    const data = await api('/api/providers?check=1');
+    const grid = $('providerGrid');
+    grid.innerHTML = (data.items || []).map(p => {
+      const h = p.health || {};
+      const ok = !!h.ok;
+      return `<div class="provider-chip">
+        <b>${p.name}</b>
+        <div>类型：${p.type} · ${ok ? '可用' : '异常'}</div>
+        <div>${p.note || ''}</div>
+        <div style="margin-top:6px;color:${ok ? 'var(--ok)' : 'var(--bad)'}">${h.message || h.detail?.service || (h.domains ? ('domains: ' + h.domains.join(', ')) : '') || ''}${h.latency_ms!=null ? ' · ' + h.latency_ms + 'ms' : ''}</div>
+      </div>`;
+    }).join('');
+    setMsg($('providerMsg'), true, '检测完成');
+  } catch (e) {
+    setMsg($('providerMsg'), false, e.message || String(e));
+  }
+}
+
+// events
+document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+$('providerSelect').addEventListener('change', loadDomains);
+$('createBoxBtn').addEventListener('click', createBox);
+$('refreshBoxesBtn').addEventListener('click', () => loadBoxes().catch(e => setMsg($('recvMsg'), false, e.message)));
+$('refreshMsgsBtn').addEventListener('click', () => refreshMessages(true));
+$('deleteBoxBtn').addEventListener('click', () => deleteCurrent().catch(e => setMsg($('recvMsg'), false, e.message)));
+$('autoRefresh').addEventListener('change', setupAutoRefresh);
+$('copyAddrBtn').addEventListener('click', async () => {
+  const box = currentBox();
+  if (!box) return;
+  setMsg($('recvMsg'), true, await copyText(box.address) ? '邮箱已复制' : '复制失败');
+});
+$('copyCodeBtn').addEventListener('click', async () => {
+  const code = $('currentCode').textContent;
+  if (!code || code === '-') { setMsg($('recvMsg'), false, '还没有验证码'); return; }
+  setMsg($('recvMsg'), true, await copyText(code) ? '验证码已复制' : '复制失败');
+});
+$('testBtn').addEventListener('click', async () => {
+  try {
+    const st = await api('/api/test', { method:'POST', body:'{}' });
+    setMsg($('sendMsg'), !!st.ok, st.message || '');
+    await loadSendStatus();
+  } catch (e) { setMsg($('sendMsg'), false, e.message); }
+});
+$('refreshSendBtn').addEventListener('click', loadSendStatus);
+$('sendBtn').addEventListener('click', () => doSend(false));
+$('teleopcSendBtn').addEventListener('click', () => doSend(true));
+$('fillCurrentBoxBtn').addEventListener('click', () => {
+  const box = currentBox();
+  if (box) $('toInput').value = box.address;
+});
+$('checkProvidersBtn').addEventListener('click', checkProviders);
+
+// init
+loadDomains();
+loadBoxes().catch(e => setMsg($('recvMsg'), false, e.message));
+loadSendStatus();
+checkProviders();
+setupAutoRefresh();
+</script>
+</body>
+</html>

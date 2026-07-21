@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+dist/
+
+# secrets / local runtime
+config.json
+config.local.json
+config.json.bak*
+.env
+accounts_*.txt
+emails_used.txt
+mail_credentials.txt
+cpa_auths/
+cookies/
+screenshots/
+*.log
+*.bak

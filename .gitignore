@@ -1,0 +1,20 @@
+# Runtime secrets and state
+config/smtp/.env
+config/grok/config.json
+config/grok/cpa_auths/
+*.log
+*.jsonl
+
+# Grok outputs / credentials
+apps/grok/accounts*.txt
+apps/grok/mail_credentials.txt
+apps/grok/cpa_auths/*
+!apps/grok/cpa_auths/.gitkeep
+apps/grok/data/
+
+# Tooling
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.DS_Store
