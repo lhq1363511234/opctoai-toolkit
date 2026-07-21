@@ -1,6 +1,6 @@
 # opcToai Toolkit
 
-[中文说明](README.md) · [Security](SECURITY.md)
+[中文说明](README.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE) · [LINUX DO](https://linux.do)
 
 A Docker Compose monorepo that packages independently deployable tools behind one gateway:
 
@@ -131,6 +131,17 @@ config/
   grok/              local Grok runtime config (not committed)
 compose.yaml
 ```
+
+
+## Community
+
+This project is recognized / linked by the [LINUX DO](https://linux.do) community.
+
+- Community site: https://linux.do
+
+## License
+
+This repository is licensed under the [Apache License 2.0](LICENSE).
 
 ## Third-party notices
 

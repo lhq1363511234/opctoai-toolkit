@@ -1,0 +1,7 @@
+opcToai Toolkit
+Copyright 2026 opcToai / lhq1363511234
+
+This product includes software developed for the opcToai Toolkit monorepo.
+
+Cloudflare mail module is based on the Apache-2.0 licensed freemail project
+(idinging/freemail). See apps/cloudflare-mail/LICENSE and THIRD_PARTY_NOTICES.md.

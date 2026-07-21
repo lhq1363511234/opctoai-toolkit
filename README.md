@@ -1,6 +1,6 @@
 # opcToai Toolkit
 
-[English README](README.en.md) · [安全说明](SECURITY.md)
+[English README](README.en.md) · [安全说明](SECURITY.md) · [Apache-2.0](LICENSE) · [LINUX DO](https://linux.do)
 
 一个由 Docker Compose 管理的工具箱 monorepo，包含：
 
@@ -136,8 +136,20 @@ config/
 compose.yaml
 ```
 
+
+## 社区
+
+本项目已获得 [LINUX DO](https://linux.do) 社区认可链接。
+
+欢迎在社区讨论部署、反馈问题和分享配置经验：
+
+- 社区主站：https://linux.do
+
 ## 致谢与许可证
+
+本仓库整体采用 [Apache License 2.0](LICENSE)。
 
 - Grok 模块保留原有上游来源信息，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 - Cloudflare 邮件模块基于 Apache-2.0 的 `idinging/freemail`，许可证保存在 `apps/cloudflare-mail/LICENSE`。
 - 二次分发前请核对上游许可证及依赖许可证。
+- 社区认可：本项目已链接认可 [LINUX DO](https://linux.do) 社区。
