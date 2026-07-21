@@ -68,6 +68,35 @@ Use a different host port when needed:
 TOOLKIT_PORT=18080 docker compose up -d --build
 ```
 
+
+### 3. Grok published image quick start (no local build)
+
+Prerequisites: fill `config/grok/config.json` (mailbox API + proxy, etc.).
+
+Docker Hub:
+
+```text
+cirstein/grok-register-web:latest   # recommended web image
+cirstein/grok-register:slim         # slim image
+```
+
+```bash
+docker pull cirstein/grok-register-web:latest
+cp config/grok/config.json.example config/grok/config.json
+# edit config/grok/config.json
+docker compose up -d grok gateway
+```
+
+Open: `http://localhost:8080/grok/`
+
+Use slim:
+
+```bash
+GROK_IMAGE=cirstein/grok-register:slim docker compose up -d grok gateway
+```
+
+Details: [apps/grok/docker/README.md](apps/grok/docker/README.md)
+
 ## Persistent data
 
 | Data | Location |

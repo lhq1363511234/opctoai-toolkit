@@ -57,6 +57,8 @@ FREEMAIL_API_KEY=your-worker-jwt-token
 docker compose up -d --build
 ```
 
+> Grok 默认直接拉 Docker Hub 镜像 `cirstein/grok-register-web:latest`，不必本地编译。
+
 默认入口：
 
 ```text
@@ -69,6 +71,35 @@ http://localhost:8080/grok/
 ```bash
 TOOLKIT_PORT=18080 docker compose up -d --build
 ```
+
+
+### 3. Grok 官方镜像快速启动（无需本地编译）
+
+前置：先配好 `config/grok/config.json`（邮箱 API + 代理等）。
+
+Docker Hub：
+
+```text
+cirstein/grok-register-web:latest   # 推荐，Web 控制台
+cirstein/grok-register:slim         # 精简版
+```
+
+```bash
+docker pull cirstein/grok-register-web:latest
+cp config/grok/config.json.example config/grok/config.json
+# 编辑 config/grok/config.json
+docker compose up -d grok gateway
+```
+
+访问：`http://localhost:8080/grok/`
+
+换 slim：
+
+```bash
+GROK_IMAGE=cirstein/grok-register:slim docker compose up -d grok gateway
+```
+
+更多说明：[apps/grok/docker/README.md](apps/grok/docker/README.md)
 
 ## 数据持久化
 

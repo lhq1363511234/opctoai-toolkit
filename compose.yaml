@@ -24,9 +24,15 @@ services:
       - mail-console-data:/var/lib/mail-console
     restart: unless-stopped
 
+  # Prebuilt Docker Hub image (no local build needed):
+  #   cirstein/grok-register-web:latest
+  # Fallback slim image without some web extras:
+  #   cirstein/grok-register:slim
+  # Override example:
+  #   GROK_IMAGE=cirstein/grok-register:slim docker compose up -d
   grok:
-    build:
-      context: ./apps/grok
+    image: ${GROK_IMAGE:-cirstein/grok-register-web:latest}
+    pull_policy: if_not_present
     environment:
       HOST: 0.0.0.0
       PORT: "18425"
