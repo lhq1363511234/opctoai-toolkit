@@ -1,0 +1,26 @@
+name = "your-mail-worker"
+main = "src/server.js"
+compatibility_date = "2024-01-01"
+
+# Run `npx wrangler d1 create your-mail-db`, then replace this placeholder.
+[[d1_databases]]
+binding = "TEMP_MAIL_DB"
+database_name = "your-mail-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# Static dashboard assets.
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+# Run `npx wrangler r2 bucket create your-mail-eml` first.
+[[r2_buckets]]
+binding = "MAIL_EML"
+bucket_name = "your-mail-eml"
+
+[vars]
+# Comma-separated mail domains accepted by this Worker.
+MAIL_DOMAIN = "mail.example.com"
+ADMIN_NAME = "admin"
+SESSION_EXPIRE_DAYS = "7"
+# Optional: RESEND_API_KEY and FORWARD_RULES are better configured as secrets/variables in Cloudflare.

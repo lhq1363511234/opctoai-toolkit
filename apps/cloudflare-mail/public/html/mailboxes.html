@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>邮箱管理 - iDing's临时邮箱</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/mailboxes.css" />
+</head>
+<body class="page-mailboxes">
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-icon">📧</span>
+        <span class="brand-text">iDing's临时邮箱 - 邮箱总览</span>
+      </div>
+      <div class="nav-actions">
+        <div style="margin-right:auto"></div>
+        <a class="btn btn-ghost" href="/" title="返回首页"><span class="btn-icon">🏠</span><span class="btn-text">首页</span></a>
+        <a id="repo" class="btn btn-ghost" href="https://github.com/idinging/freemail" target="_blank" rel="noopener noreferrer" title="GitHub 开源仓库">
+          <span class="btn-icon">🔗</span>
+          <span class="btn-text">GitHub</span>
+        </a>
+        <button id="logout" class="btn btn-secondary" title="退出登录"><span class="btn-icon">🚪</span><span class="btn-text">退出登录</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="main">
+      <div class="card">
+        <h2><span class="card-icon">📦</span>所有邮箱</h2>
+        <div class="toolbar">
+          <!-- 第一行：搜索 + 筛选 -->
+          <div class="toolbar-row-1">
+            <div class="searchbar">
+              <input id="q" class="search-input" placeholder="搜索邮箱地址" />
+              <button id="search" class="btn btn-primary btn-sm"><span class="btn-icon">🔍</span><span>搜索</span></button>
+            </div>
+            <div class="filter-actions">
+              <select id="domain-filter" class="filter-select" title="按域名筛选">
+                <option value="">全部域名</option>
+              </select>
+              <select id="login-filter" class="filter-select" title="按登录权限筛选">
+                <option value="">登录状态</option>
+                <option value="allowed">允许登录</option>
+                <option value="denied">禁止登录</option>
+              </select>
+              <select id="favorite-filter" class="filter-select" title="按收藏筛选">
+                <option value="">收藏状态</option>
+                <option value="favorite">已收藏</option>
+                <option value="not-favorite">未收藏</option>
+              </select>
+              <select id="forward-filter" class="filter-select" title="按转发筛选">
+                <option value="">转发状态</option>
+                <option value="has-forward">已设置</option>
+                <option value="no-forward">未设置</option>
+              </select>
+            </div>
+          </div>
+          <!-- 第二行：批量操作 + 视图切换 -->
+          <div class="toolbar-row-2">
+            <div class="toolbar-spacer"></div>
+            <div class="batch-actions">
+              <button id="batch-allow" class="btn btn-ghost btn-sm" title="批量放行邮箱登录">
+                <span class="btn-icon">✅</span><span>批量放行</span>
+              </button>
+              <button id="batch-deny" class="btn btn-ghost btn-sm" title="批量禁止邮箱登录">
+                <span class="btn-icon">🚫</span><span>批量禁止</span>
+              </button>
+              <button id="batch-favorite" class="btn btn-ghost btn-sm" title="批量收藏">
+                <span class="btn-icon">⭐</span><span>批量收藏</span>
+              </button>
+              <button id="batch-unfavorite" class="btn btn-ghost btn-sm" title="批量取消收藏">
+                <span class="btn-icon">☆</span><span>批量取消</span>
+              </button>
+              <button id="batch-forward" class="btn btn-ghost btn-sm" title="批量设置转发">
+                <span class="btn-icon">↪️</span><span>批量转发</span>
+              </button>
+              <button id="batch-clear-forward" class="btn btn-ghost btn-sm" title="批量清除转发">
+                <span class="btn-icon">🚫</span><span>清除转发</span>
+              </button>
+            </div>
+            <div class="view-toggle">
+              <button id="view-grid" class="btn btn-ghost btn-sm active" title="卡片网格视图">
+                <span class="view-icon grid-icon"></span>
+              </button>
+              <button id="view-list" class="btn btn-ghost btn-sm" title="列表行视图">
+                <span class="view-icon list-icon"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="grid" class="grid"></div>
+        <div id="loading-placeholder" class="loading-placeholder">
+          <!-- 骨架屏内容将由JavaScript动态生成 -->
+        </div>
+        <div id="empty" class="empty-state" style="display:none">
+          <div class="empty-icon">📭</div>
+          <div class="empty-title">暂无数据</div>
+        </div>
+        <div class="pager">
+          <button id="prev" class="btn btn-ghost btn-sm">上一页</button>
+          <span id="page" class="muted" style="min-width:100px;text-align:center"></span>
+          <button id="next" class="btn btn-ghost btn-sm">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer-slot"></div>
+  <!-- 重置密码二级页（模态框） -->
+  <div class="modal" id="reset-modal" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="modal-icon">🔐</span>
+          <span>重置邮箱密码</span>
+        </div>
+        <button id="reset-close" class="close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0 0 12px 0;color:#334155">将把该邮箱的密码重置为“默认”（即邮箱地址本身）。</p>
+        <div style="padding:12px;border:1px solid var(--border-light);border-radius:8px;background:var(--card-glass);">
+          <div style="color:#475569;font-size:12px">邮箱地址</div>
+          <div id="reset-email" style="font-weight:700;color:#111827;word-break:break-all"></div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end">
+          <button id="reset-cancel" class="btn btn-secondary">取消</button>
+          <button id="reset-confirm" class="btn btn-danger">确定重置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 登录权限确认框（模态框） -->
+  <div class="modal" id="login-confirm-modal" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="modal-icon" id="login-confirm-icon">🔒</span>
+          <span id="login-confirm-title">确认操作</span>
+        </div>
+        <button id="login-confirm-close" class="close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="login-confirm-message" style="margin:0 0 12px 0;color:#334155"></p>
+        <div style="padding:12px;border:1px solid var(--border-light);border-radius:8px;background:var(--card-glass);">
+          <div style="color:#475569;font-size:12px">邮箱地址</div>
+          <div id="login-confirm-email" style="font-weight:700;color:#111827;word-break:break-all"></div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end">
+          <button id="login-confirm-cancel" class="btn btn-secondary">取消</button>
+          <button id="login-confirm-ok" class="btn btn-primary">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 修改密码模态框 -->
+  <div class="modal" id="change-password-modal" style="display:none">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="modal-icon">🔑</span>
+          <span>修改邮箱密码</span>
+        </div>
+        <button id="change-password-close" class="close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0 0 12px 0;color:#334155">为该邮箱设置新的自定义密码。</p>
+        <div style="padding:16px;border:1px solid rgba(226, 232, 240, 0.6);border-radius:12px;background:linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(241, 245, 249, 0.6) 100%);margin-bottom:16px;">
+          <div style="color:#475569;font-size:12px">邮箱地址</div>
+          <div id="change-password-email" style="font-weight:700;color:#111827;word-break:break-all"></div>
+        </div>
+        <form id="change-password-form">
+          <div style="margin-bottom:16px;">
+            <label style="display:block;margin-bottom:6px;color:#374151;font-weight:500;font-size:14px;">新密码</label>
+            <input type="password" id="new-password" class="form-input" placeholder="请输入新密码（至少6位）" minlength="6" required 
+                   style="width:100%;padding:10px 12px;border:1px solid rgba(226, 232, 240, 0.8);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.9);" />
+          </div>
+          <div style="margin-bottom:20px;">
+            <label style="display:block;margin-bottom:6px;color:#374151;font-weight:500;font-size:14px;">确认新密码</label>
+            <input type="password" id="confirm-password" class="form-input" placeholder="请再次输入新密码" minlength="6" required 
+                   style="width:100%;padding:10px 12px;border:1px solid rgba(226, 232, 240, 0.8);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.9);" />
+          </div>
+          <div style="display:flex;gap:12px;justify-content:flex-end">
+            <button type="button" id="change-password-cancel" class="btn btn-secondary">取消</button>
+            <button type="submit" id="change-password-submit" class="btn btn-primary">修改密码</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 批量操作模态框 -->
+  <div class="modal" id="batch-login-modal" style="display:none">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <div>
+          <span class="modal-icon" id="batch-modal-icon">📝</span>
+          <span id="batch-modal-title">批量操作邮箱登录权限</span>
+        </div>
+        <button id="batch-modal-close" class="close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="batch-modal-message" style="margin:0 0 12px 0;color:#334155"></p>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;color:#374151;font-weight:500;font-size:14px;">
+            邮箱地址列表（一行一个）
+          </label>
+          <textarea id="batch-emails-input" class="form-textarea" 
+                    placeholder="请输入邮箱地址，一行一个&#10;例如：&#10;user1@example.com&#10;user2@example.com&#10;user3@example.com" 
+                    rows="10"
+                    style="width:100%;padding:10px 12px;border:1px solid rgba(226, 232, 240, 0.8);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.9);font-family:monospace;resize:vertical;"></textarea>
+          <div style="margin-top:8px;font-size:12px;color:#64748b;">
+            <span id="batch-count-info">输入邮箱后将显示数量统计</span>
+          </div>
+        </div>
+        <!-- 转发目标输入框（仅批量转发时显示） -->
+        <div id="batch-forward-input-wrapper" style="display:none;margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;color:#374151;font-weight:500;font-size:14px;">
+            转发目标邮箱
+          </label>
+          <input id="batch-forward-target" type="email" class="form-input"
+                 placeholder="所有选中邮箱将转发到此地址" 
+                 style="width:100%;padding:10px 12px;border:1px solid rgba(226, 232, 240, 0.8);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.9);"/>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end">
+          <button id="batch-modal-cancel" class="btn btn-secondary">取消</button>
+          <button id="batch-modal-confirm" class="btn btn-primary" disabled>
+            <span class="batch-btn-text">确定操作</span>
+            <span class="batch-btn-loading" style="display:none;">处理中...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 密码操作模态框 -->
+  <div class="modal" id="password-modal" style="display:none">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="modal-header">
+        <div>
+          <span class="modal-icon" id="password-modal-icon">🔑</span>
+          <span id="password-modal-title">密码操作</span>
+        </div>
+        <button id="password-modal-close" class="close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="password-modal-message" style="margin:0 0 16px 0;color:#334155"></p>
+        <!-- 设置密码输入框 -->
+        <div id="password-input-wrapper" style="display:none;margin-bottom:16px;">
+          <label style="display:block;margin-bottom:6px;color:#374151;font-weight:500;font-size:14px;">
+            新密码
+          </label>
+          <input id="password-new-input" type="password" class="form-input"
+                 placeholder="请输入新密码" 
+                 style="width:100%;padding:10px 12px;border:1px solid rgba(226, 232, 240, 0.8);border-radius:8px;font-size:14px;background:rgba(255,255,255,0.9);"/>
+          <div style="margin-top:8px;">
+            <label style="display:flex;align-items:center;gap:6px;color:#64748b;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="password-show-toggle" style="cursor:pointer;"/>
+              显示密码
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end">
+          <button id="password-modal-cancel" class="btn btn-secondary">取消</button>
+          <button id="password-modal-confirm" class="btn btn-primary">
+            <span class="password-btn-text">确定</span>
+            <span class="password-btn-loading" style="display:none;">处理中...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 分配用户二级页面 -->
+  <div id="assign-user-subpage" class="subpage" style="display: none;">
+    <div class="subpage-overlay"></div>
+    <div class="subpage-content">
+      <div class="subpage-header">
+        <div class="subpage-title">
+          <span class="subpage-icon">👤</span>
+          <span>分配邮箱给用户</span>
+        </div>
+        <button id="assign-subpage-close" class="subpage-close" title="关闭">✕</button>
+      </div>
+      
+      <div class="subpage-body">
+        <!-- 邮箱信息 -->
+        <div class="assign-mailbox-info">
+          <div class="info-label">邮箱地址</div>
+          <div id="assign-subpage-email" class="info-value"></div>
+        </div>
+        
+        <!-- 用户列表 -->
+        <div class="assign-users-section">
+          <div class="section-header">
+            <h3>选择要分配的用户</h3>
+            <div class="selection-actions">
+              <button id="select-all-users" class="btn btn-ghost btn-sm">全选</button>
+              <button id="clear-all-users" class="btn btn-ghost btn-sm">清空</button>
+            </div>
+          </div>
+          
+          <!-- 搜索用户 -->
+          <div class="user-search">
+            <input id="user-search-input" type="text" placeholder="搜索用户名或显示名称..." class="search-input">
+          </div>
+          
+          <!-- 加载状态 -->
+          <div id="users-loading" class="loading-state" style="display: none;">
+            <div class="loading-spinner"></div>
+            <div>正在加载用户列表...</div>
+          </div>
+          
+          <!-- 用户列表 -->
+          <div id="users-list" class="users-list" style="display: none;">
+            <!-- 用户项将由JavaScript动态生成 -->
+          </div>
+          
+          <!-- 空状态 -->
+          <div id="users-empty" class="empty-state" style="display: none;">
+            <div class="empty-icon">👥</div>
+            <div class="empty-title">暂无可分配用户</div>
+          </div>
+        </div>
+        
+        <!-- 已选用户 -->
+        <div id="selected-users-section" class="selected-users-section" style="display: none;">
+          <div class="section-header">
+            <h3>已选择用户 (<span id="selected-count">0</span>)</h3>
+          </div>
+          <div id="selected-users-list" class="selected-users-list">
+            <!-- 已选用户将由JavaScript动态生成 -->
+          </div>
+        </div>
+      </div>
+      
+      <div class="subpage-footer">
+        <div class="footer-actions">
+          <button id="assign-subpage-cancel" class="btn btn-secondary">取消</button>
+          <button id="assign-subpage-confirm" class="btn btn-primary" disabled>
+            <span class="btn-text">确定分配</span>
+            <span class="btn-loading" style="display: none;">分配中...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="/js/toast-utils.js"></script>
+  <script type="module" src="/js/mailboxes.js"></script>
+</body>
+</html>
+
+

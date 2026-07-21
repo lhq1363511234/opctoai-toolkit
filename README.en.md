@@ -5,6 +5,7 @@
 A Docker Compose monorepo that packages two independently deployable tools behind one gateway:
 
 - **SMTP Console** — SMTP sending, temporary mailbox management, inbound message viewing, verification-code extraction, and provider health checks.
+- **Cloudflare Mail** — a self-hosted Workers + Email Routing + D1 + R2 inbound mail service.
 - **Grok Web** — a browser workflow and configuration dashboard. You must provide your own compliant external mail, proxy, and CPA service settings.
 
 ## Routes
@@ -23,7 +24,8 @@ A Docker Compose monorepo that packages two independently deployable tools behin
 
 ## Module docs
 
-- [SMTP Console bilingual README](apps/smtp/README.md)
+- [Complete SMTP Console + Cloudflare Mail deployment guide](apps/smtp/README.md)
+- Cloudflare Worker mail source: `apps/cloudflare-mail/`
 - See `apps/grok/README.md` for the Grok module
 
 ## Quick start

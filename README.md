@@ -5,6 +5,7 @@
 一个由 Docker Compose 管理的双模块工具箱：
 
 - **SMTP Console**：统一管理发件 SMTP、临时邮箱、收件、验证码提取和邮件服务连接状态。
+- **Cloudflare Mail**：Workers + Email Routing + D1 + R2 的自建收件服务。
 - **Grok Web**：浏览器工作流与账号/配置管理界面。该模块需要你自行提供合规的外部邮件、代理和 CPA 等服务配置。
 
 两个模块由同一个 Nginx 网关提供入口：
@@ -23,7 +24,8 @@
 
 ## 模块文档
 
-- [SMTP Console 中英文说明](apps/smtp/README.md)
+- [SMTP Console + Cloudflare Mail 完整中英文部署说明](apps/smtp/README.md)
+- Cloudflare Worker 邮件源码：`apps/cloudflare-mail/`
 - Grok 模块说明见 `apps/grok/README.md`
 
 ## 快速开始

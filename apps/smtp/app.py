@@ -20,7 +20,7 @@ from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
 from typing import Any, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import FastAPI, Request
@@ -66,6 +66,8 @@ TELE_OPC_BASE = os.getenv("TELE_OPC_BASE", "").rstrip("/")
 TELE_OPC_DEV_TOKEN = os.getenv("TELE_OPC_DEV_TOKEN", "")
 OPC_MAIL_BASE = os.getenv("OPC_MAIL_BASE", "").rstrip("/")
 OPC_MAIL_DOMAINS = [x.strip() for x in os.getenv("OPC_MAIL_DOMAINS", "").split(",") if x.strip()]
+FREEMAIL_BASE = os.getenv("FREEMAIL_BASE", "").rstrip("/")
+FREEMAIL_API_KEY = os.getenv("FREEMAIL_API_KEY", "")
 DUCKMAIL_BASE = os.getenv("DUCKMAIL_BASE", "https://api.duckmail.sbs").rstrip("/")
 MAILTM_BASE = os.getenv("MAILTM_BASE", "https://api.mail.tm").rstrip("/")
 TEMPMAIL_BASE = os.getenv("TEMPMAIL_BASE", "https://api.internal.temp-mail.io/api/v3").rstrip("/")
@@ -452,6 +454,14 @@ def provider_catalog() -> list[dict[str, Any]]:
             "base": OPC_MAIL_BASE,
         },
         {
+            "id": "freemail",
+            "name": "Cloudflare FreeMail",
+            "type": "receive",
+            "create": True,
+            "note": "Cloudflare Workers + D1 + R2 + Email Routing",
+            "base": FREEMAIL_BASE,
+        },
+        {
             "id": "mailtm",
             "name": "Mail.tm",
             "type": "receive",
@@ -616,6 +626,78 @@ def opctoai_messages(box: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def freemail_headers() -> dict[str, str]:
+    headers = {"Accept": "application/json"}
+    if FREEMAIL_API_KEY:
+        headers["Authorization"] = f"Bearer {FREEMAIL_API_KEY}"
+    return headers
+
+
+def freemail_domains() -> list[str]:
+    if not FREEMAIL_BASE:
+        raise RuntimeError("FREEMAIL_BASE is not configured")
+    data = http_json("GET", f"{FREEMAIL_BASE}/api/domains", headers=freemail_headers())
+    if isinstance(data, list):
+        return [str(x) for x in data if x]
+    return [str(x.get("domain")) for x in list_payload(data) if isinstance(x, dict) and x.get("domain")]
+
+
+def freemail_create(name: str = "", domain: str = "") -> dict[str, Any]:
+    if not FREEMAIL_BASE:
+        raise RuntimeError("FREEMAIL_BASE is not configured")
+    if name:
+        domains = freemail_domains()
+        use_domain = domain if domain in domains else (domains[0] if domains else "")
+        body = {"local": name}
+        if use_domain and domains:
+            body["domainIndex"] = domains.index(use_domain)
+        data = http_json("POST", f"{FREEMAIL_BASE}/api/create", data=body, headers=freemail_headers())
+    else:
+        query = ""
+        domains = freemail_domains()
+        if domain and domain in domains:
+            query = "?" + urlencode({"domainIndex": domains.index(domain)})
+        data = http_json("GET", f"{FREEMAIL_BASE}/api/generate{query}", headers=freemail_headers())
+    address = data.get("email") or data.get("address") if isinstance(data, dict) else ""
+    if not address:
+        raise RuntimeError(f"freemail create failed: {data}")
+    return {
+        "provider": "freemail",
+        "address": address,
+        "password": "",
+        "token": FREEMAIL_API_KEY,
+        "meta": {"api_base": FREEMAIL_BASE},
+    }
+
+
+def freemail_messages(box: dict[str, Any]) -> list[dict[str, Any]]:
+    if not FREEMAIL_BASE:
+        raise RuntimeError("FREEMAIL_BASE is not configured")
+    address = str(box.get("address") or "")
+    query = urlencode({"mailbox": address, "limit": 20})
+    data = http_json("GET", f"{FREEMAIL_BASE}/api/emails?{query}", headers=freemail_headers())
+    out = []
+    for m in list_payload(data):
+        merged = dict(m)
+        mid = m.get("id") if isinstance(m, dict) else None
+        if mid:
+            try:
+                detail = http_json("GET", f"{FREEMAIL_BASE}/api/email/{quote(str(mid))}", headers=freemail_headers())
+                if isinstance(detail, dict):
+                    merged.update(detail)
+            except Exception:
+                pass
+        # FreeMail uses sender/content/html_content; normalize to the console schema.
+        if merged.get("sender") and not merged.get("from"):
+            merged["from"] = merged.get("sender")
+        if merged.get("content") and not merged.get("text"):
+            merged["text"] = merged.get("content")
+        if merged.get("html_content") and not merged.get("html"):
+            merged["html"] = merged.get("html_content")
+        out.append(normalize_message(merged, "freemail"))
+    return out
+
+
 def mailtm_like_domains(base: str) -> list[str]:
     data = http_json("GET", f"{base}/domains")
     domains = []
@@ -759,6 +841,9 @@ def provider_health(provider_id: str) -> dict[str, Any]:
             data = http_json("GET", f"{OPC_MAIL_BASE}/")
             ok = bool(data.get("ok")) if isinstance(data, dict) else True
             return {"id": provider_id, "ok": ok, "latency_ms": int((time.time() - t0) * 1000), "detail": data}
+        if provider_id == "freemail":
+            domains = freemail_domains()
+            return {"id": provider_id, "ok": bool(domains), "latency_ms": int((time.time() - t0) * 1000), "domains": domains[:5]}
         if provider_id == "mailtm":
             domains = mailtm_like_domains(MAILTM_BASE)
             return {"id": provider_id, "ok": bool(domains), "latency_ms": int((time.time() - t0) * 1000), "domains": domains[:5]}
@@ -789,6 +874,8 @@ def create_mailbox(provider: str, name: str = "", domain: str = "", label: str =
     if provider in {"custom_mail", "opctoai"}:
         created = opctoai_create(name=name, domain=domain)
         provider = "custom_mail"
+    elif provider == "freemail":
+        created = freemail_create(name=name, domain=domain)
     elif provider == "mailtm":
         created = mailtm_like_create("mailtm", MAILTM_BASE, name=name, domain=domain)
     elif provider == "duckmail":
@@ -817,6 +904,8 @@ def fetch_messages(box: dict[str, Any]) -> list[dict[str, Any]]:
     provider = (box.get("provider") or "").lower()
     if provider in {"custom_mail", "opctoai"}:
         return opctoai_messages(box)
+    if provider == "freemail":
+        return freemail_messages(box)
     if provider == "mailtm":
         return mailtm_like_messages("mailtm", MAILTM_BASE, box)
     if provider == "duckmail":
@@ -889,6 +978,8 @@ async def api_provider_domains(provider_id: str) -> dict[str, Any]:
     try:
         if provider_id in {"custom_mail", "opctoai"}:
             domains = OPC_MAIL_DOMAINS or ([u.split("//",1)[-1].split("/",1)[0] for u in [OPC_MAIL_BASE] if u])
+        elif provider_id == "freemail":
+            domains = freemail_domains()
         elif provider_id == "mailtm":
             domains = mailtm_like_domains(MAILTM_BASE)
         elif provider_id == "duckmail":
