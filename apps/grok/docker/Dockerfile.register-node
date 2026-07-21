@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM docker.io/cirstein/grok-register:slim
+FROM grok-register:slim
 
 USER root
 WORKDIR /app
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY fleet_register_agent.py /app/fleet_register_agent.py
 
 ENV FLEET_HUB= \
-    NODE_SECRET=renderdeploy-node \
+    NODE_SECRET= \
     NODE_ROLE=register \
     NODE_NAME=grok-register-node \
     MAIL_API_BASE= \

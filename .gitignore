@@ -18,3 +18,9 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+
+# Cloudflare Worker local secrets
+apps/cloudflare-mail/wrangler.toml
+apps/cloudflare-mail/.dev.vars
+apps/cloudflare-mail/.wrangler/
+apps/cloudflare-mail/node_modules/

@@ -1,33 +1,72 @@
-# Grok Register Image
+# Grok Register Docker Image
 
-对应线上服务：`https://toolkit.opctoai.com/grok/`
+Container packaging notes for the Grok web module in this monorepo.
 
-源码：`/root/opt/grok_reg-share`（`grok-reg-web.service` -> `web_app.py:18425`）
+## Image purpose
 
-## 镜像
-- `cirstein/grok-register:slim`
-- `cirstein/grok-register:latest`
+- Run the Grok web console with Chromium + Xvfb
+- Keep runtime config and generated credentials outside the image
+- Support local compose deployment via repository root `compose.yaml`
 
-说明：
-- 业务代码本身很小
-- 镜像体积主要来自 Chromium + Xvfb（注册机需要浏览器自动化）
-- Hub 层压缩后约 430MB 级；本地解压约 1.03GB
+Typical published tags (example):
 
-## 运行
+```text
+your-dockerhub-user/grok-register:slim
+your-dockerhub-user/grok-register:latest
+```
+
+Image size mainly comes from Chromium + Xvfb, not application code.
+
+## Run with compose (recommended)
+
+From repository root:
+
 ```bash
+cp config/grok/config.json.example config/grok/config.json
+# edit config/grok/config.json
+docker compose up -d --build grok gateway
+```
+
+Open:
+
+```text
+http://localhost:8080/grok/
+```
+
+## Standalone run
+
+```bash
+docker build -f apps/grok/Dockerfile -t grok-register:local apps/grok
+
 docker run -d --name grok-register \
   -p 18425:18425 \
+  --shm-size=1g \
   -e HOST=0.0.0.0 \
   -e PORT=18425 \
-  -v $PWD/config.json:/app/config.json \
-  -v $PWD/cpa_auths:/app/cpa_auths \
-  cirstein/grok-register:slim
+  -e GROK_CONFIG_FILE=/data/config.json \
+  -e GROK_DATA_DIR=/data \
+  -e GROK_CPA_DIR=/data/cpa_auths \
+  -v "$PWD/config/grok:/data" \
+  grok-register:local
 ```
 
-## 构建
+## Important volumes
+
+| Path in container | Host path | Content |
+| --- | --- | --- |
+| `/data/config.json` | `config/grok/config.json` | Runtime settings |
+| `/data/cpa_auths` | `config/grok/cpa_auths/` | Exported auth files |
+
+Never bake real proxy URLs, mailbox tokens, CPA keys, or account exports into the image.
+
+## Build notes
+
 ```bash
-cd /root/opt/grok_reg-share
-DOCKER_BUILDKIT=0 docker build -f docker/Dockerfile.slim -t cirstein/grok-register:slim -t cirstein/grok-register:latest .
-docker push cirstein/grok-register:slim
-docker push cirstein/grok-register:latest
+# from monorepo root
+docker compose build grok
+
+# or build app context directly
+docker build -f apps/grok/Dockerfile -t grok-register:local apps/grok
 ```
+
+For slim packaging experiments, see Dockerfiles under `apps/grok/docker/`.

@@ -34,9 +34,9 @@ def main():
     print("title", tab.title, flush=True)
     text = tab.run_js('return document.body?document.body.innerText.slice(0,2000):""')
     print("TEXT:", text, flush=True)
-    open("/root/opt/grok_reg-share/debug_signup.html", "w").write(tab.html or "")
+    open("/tmp/grok-debug-signup.html", "w").write(tab.html or "")
     try:
-        tab.get_screenshot(path="/root/opt/grok_reg-share/debug_signup.png", full_page=True)
+        tab.get_screenshot(path="/tmp/grok-debug-signup.png", full_page=True)
     except Exception as e:
         print("shot", e, flush=True)
     info = tab.run_js(
@@ -69,7 +69,7 @@ def main():
         flush=True,
     )
     try:
-        tab.get_screenshot(path="/root/opt/grok_reg-share/debug_after_email_btn.png", full_page=True)
+        tab.get_screenshot(path="/tmp/grok-debug-after-email-btn.png", full_page=True)
     except Exception as e:
         print("shot2", e, flush=True)
     browser.quit()

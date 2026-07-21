@@ -2,13 +2,13 @@
 
 [English README](README.en.md) · [安全说明](SECURITY.md)
 
-一个由 Docker Compose 管理的双模块工具箱：
+一个由 Docker Compose 管理的工具箱 monorepo，包含：
 
 - **SMTP Console**：统一管理发件 SMTP、临时邮箱、收件、验证码提取和邮件服务连接状态。
 - **Cloudflare Mail**：Workers + Email Routing + D1 + R2 的自建收件服务。
 - **Grok Web**：浏览器工作流与账号/配置管理界面。该模块需要你自行提供合规的外部邮件、代理和 CPA 等服务配置。
 
-两个模块由同一个 Nginx 网关提供入口：
+统一入口由 Nginx 网关提供：
 
 | 路径 | 服务 | 默认容器端口 |
 | --- | --- | --- |
@@ -17,16 +17,19 @@
 
 ## 特性
 
-- 单仓库、单个 `compose.yaml` 管理两个服务。
+- 单仓库、单个 `compose.yaml` 管理服务。
 - 运行配置与源码分离：密码、Token、代理、邮箱和账户数据不进入 Git，也不被写入镜像层。
 - Grok 服务使用 Xvfb、Chromium 与共享内存配置，适合容器运行环境。
 - 可替换网关、SMTP、邮箱 API、CPA 服务和代理，无需修改源代码。
 
 ## 模块文档
 
-- [SMTP Console + Cloudflare Mail 完整中英文部署说明](apps/smtp/README.md)
-- Cloudflare Worker 邮件源码：`apps/cloudflare-mail/`
-- Grok 模块说明见 `apps/grok/README.md`
+| 模块 | 文档 |
+| --- | --- |
+| SMTP Console + Cloudflare 完整部署 | [apps/smtp/README.md](apps/smtp/README.md) |
+| Cloudflare Worker 邮件源码 | [apps/cloudflare-mail/README.md](apps/cloudflare-mail/README.md) |
+| Grok 模块 | [apps/grok/README.md](apps/grok/README.md) |
+| Grok Docker 打包说明 | [apps/grok/docker/README.md](apps/grok/docker/README.md) |
 
 ## 快速开始
 
@@ -40,6 +43,13 @@ cp config/grok/config.json.example config/grok/config.json
 ```
 
 编辑两个配置文件，填入你自己的 SMTP、邮箱服务、代理和远程服务地址。**不要把真实凭据提交到 Git。**
+
+若要自建 Cloudflare 收件服务，先按 [apps/cloudflare-mail/README.md](apps/cloudflare-mail/README.md) 部署 Worker，再在 `config/smtp/.env` 中设置：
+
+```env
+FREEMAIL_BASE=https://your-mail-worker.example.workers.dev
+FREEMAIL_API_KEY=your-worker-jwt-token
+```
 
 ### 2. 启动
 
@@ -82,6 +92,7 @@ TOOLKIT_PORT=18080 docker compose up -d --build
 
 ```bash
 python3 -m py_compile apps/smtp/app.py apps/grok/web_app.py
+node --check apps/cloudflare-mail/src/server.js
 docker compose config
 ```
 
@@ -89,16 +100,19 @@ docker compose config
 
 ```text
 apps/
-  smtp/       SMTP Console 源码和 Dockerfile
-  grok/       Grok Web 源码和 Dockerfile
+  smtp/              SMTP Console 源码、Dockerfile、完整邮件部署 README
+  cloudflare-mail/   Cloudflare Worker 邮件源码、wrangler 模板、D1 SQL
+  grok/              Grok Web 源码和 Dockerfile
 docker/
-  gateway/    统一 Nginx 网关配置
+  gateway/           统一 Nginx 网关配置
 config/
-  smtp/       本地 SMTP 环境变量（不提交）
-  grok/       Grok 本地运行配置（不提交）
+  smtp/              本地 SMTP 环境变量（不提交）
+  grok/              Grok 本地运行配置（不提交）
 compose.yaml
 ```
 
 ## 致谢与许可证
 
-Grok 模块保留原有上游来源信息，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。在二次分发前请核对上游许可证及依赖许可证。
+- Grok 模块保留原有上游来源信息，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- Cloudflare 邮件模块基于 Apache-2.0 的 `idinging/freemail`，许可证保存在 `apps/cloudflare-mail/LICENSE`。
+- 二次分发前请核对上游许可证及依赖许可证。

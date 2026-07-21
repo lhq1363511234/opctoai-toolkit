@@ -24,7 +24,7 @@ from pathlib import Path
 import requests
 
 FLEET_HUB = os.getenv("FLEET_HUB", "").rstrip("/")
-NODE_SECRET = os.getenv("NODE_SECRET", "renderdeploy-node")
+NODE_SECRET = os.getenv("NODE_SECRET", "")
 NODE_ID = os.getenv("NODE_ID") or os.getenv("RENDER_SERVICE_ID") or f"register-{uuid.uuid4().hex[:8]}"
 NODE_NAME = os.getenv("NODE_NAME", "grok-register-node")
 NODE_ROLE = os.getenv("NODE_ROLE", "register")
