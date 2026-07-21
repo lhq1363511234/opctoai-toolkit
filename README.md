@@ -80,8 +80,7 @@ TOOLKIT_PORT=18080 docker compose up -d --build
 Docker Hub：
 
 ```text
-cirstein/grok-register-web:latest   # 推荐，Web 控制台
-cirstein/grok-register:slim         # 精简版
+cirstein/grok-register-web:latest
 ```
 
 ```bash
@@ -93,11 +92,6 @@ docker compose up -d grok gateway
 
 访问：`http://localhost:8080/grok/`
 
-换 slim：
-
-```bash
-GROK_IMAGE=cirstein/grok-register:slim docker compose up -d grok gateway
-```
 
 更多说明：[apps/grok/docker/README.md](apps/grok/docker/README.md)
 

@@ -76,8 +76,7 @@ Prerequisites: fill `config/grok/config.json` (mailbox API + proxy, etc.).
 Docker Hub:
 
 ```text
-cirstein/grok-register-web:latest   # recommended web image
-cirstein/grok-register:slim         # slim image
+cirstein/grok-register-web:latest
 ```
 
 ```bash
@@ -89,11 +88,6 @@ docker compose up -d grok gateway
 
 Open: `http://localhost:8080/grok/`
 
-Use slim:
-
-```bash
-GROK_IMAGE=cirstein/grok-register:slim docker compose up -d grok gateway
-```
 
 Details: [apps/grok/docker/README.md](apps/grok/docker/README.md)
 
