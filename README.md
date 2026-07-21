@@ -21,6 +21,11 @@
 - Grok 服务使用 Xvfb、Chromium 与共享内存配置，适合容器运行环境。
 - 可替换网关、SMTP、邮箱 API、CPA 服务和代理，无需修改源代码。
 
+## 模块文档
+
+- [SMTP Console 中英文说明](apps/smtp/README.md)
+- Grok 模块说明见 `apps/grok/README.md`
+
 ## 快速开始
 
 ### 1. 准备配置

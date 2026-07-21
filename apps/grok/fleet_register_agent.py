@@ -3,7 +3,7 @@
 """Cloudflare Fleet register-node agent for grok-register.
 
 Safe skeleton: it does not change the existing web/CLI register flow. It lets a
-Render/VPS node register to https://fleet.opctoai.xyz, heartbeat, poll register
+Render/VPS node register to a fleet hub, heartbeat, poll register
 jobs, run selfcheck, and report results. Real registration execution should be
 wired explicitly after selfcheck passes.
 """
@@ -23,13 +23,13 @@ from pathlib import Path
 
 import requests
 
-FLEET_HUB = os.getenv("FLEET_HUB", "https://fleet.opctoai.xyz").rstrip("/")
+FLEET_HUB = os.getenv("FLEET_HUB", "").rstrip("/")
 NODE_SECRET = os.getenv("NODE_SECRET", "renderdeploy-node")
 NODE_ID = os.getenv("NODE_ID") or os.getenv("RENDER_SERVICE_ID") or f"register-{uuid.uuid4().hex[:8]}"
 NODE_NAME = os.getenv("NODE_NAME", "grok-register-node")
 NODE_ROLE = os.getenv("NODE_ROLE", "register")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "10"))
-MAIL_API_BASE = os.getenv("MAIL_API_BASE") or os.getenv("CLOUDFLARE_API_BASE") or "https://mail.opctoai.xyz"
+MAIL_API_BASE = os.getenv("MAIL_API_BASE") or os.getenv("CLOUDFLARE_API_BASE") or ""
 
 
 def log(*args):

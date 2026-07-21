@@ -97,8 +97,8 @@
   <div class="wrap">
     <h1>统一邮件控制台</h1>
     <div class="sub">
-      收件：OPC / Mail.tm / DuckMail / TempMail.io 一键建号、自动提取验证码，方便手动注册 GPT / Grok。<br/>
-      发件：复用 Feishu SMTP（api@opctoai.com）与 Tele-OPC 客户发信。
+      收件：自定义邮箱 API / Mail.tm / DuckMail / TempMail.io，支持创建临时邮箱并提取验证码。<br/>
+      发件：使用你自己配置的 SMTP，或可选的远程发信接口。
     </div>
 
     <div class="tabs">
@@ -123,7 +123,7 @@
           <div class="flex1">
             <label>邮箱服务</label>
             <select id="providerSelect">
-              <option value="opctoai">OPC Mail (opctoai.xyz)</option>
+              <option value="custom_mail">Custom Mail API</option>
               <option value="mailtm">Mail.tm</option>
               <option value="duckmail">DuckMail</option>
               <option value="tempmailio">TempMail.io</option>
@@ -204,7 +204,7 @@
         </div>
         <div class="row">
           <button class="btn btn-primary" id="sendBtn" type="button">直接 SMTP 发送</button>
-          <button class="btn btn-ghost" id="teleopcSendBtn" type="button">经 Tele-OPC 发送</button>
+          <button class="btn btn-ghost" id="teleopcSendBtn" type="button">经远程发信接口发送</button>
           <button class="btn btn-ghost" id="fillCurrentBoxBtn" type="button">填入当前临时邮箱</button>
         </div>
         <div id="sendMsg" class="msg"></div>
@@ -451,7 +451,7 @@ async function loadSendStatus(){
     const data = await api('/api/status');
     setBadge($('sendStatus'), !!data.ok, data.ok ? 'SMTP 正常' : 'SMTP 异常');
     $('smtpInfo').innerHTML = `
-      发件服务：<b>Feishu SMTP</b><br/>
+      发件服务：<b>SMTP</b><br/>
       Host：<b>${data.smtp.host}:${data.smtp.port}</b> / secure=${data.smtp.secure}<br/>
       From：<b>${data.smtp.from_name} &lt;${data.smtp.from}&gt;</b><br/>
       User：<b>${data.smtp.user}</b><br/>
@@ -492,7 +492,7 @@ async function doSend(viaTele=false){
   try {
     const path = viaTele ? '/api/teleopc/send' : '/api/send';
     const data = await api(path, { method:'POST', body: JSON.stringify(payload) });
-    setMsg($('sendMsg'), true, viaTele ? 'Tele-OPC 发送成功' : `SMTP 发送成功 ${data.message_id || ''}`);
+    setMsg($('sendMsg'), true, viaTele ? '远程发信成功' : `SMTP 发送成功 ${data.message_id || ''}`);
     await loadSendStatus();
   } catch (e) {
     setMsg($('sendMsg'), false, e.message || String(e));

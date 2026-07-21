@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Toolkit unified mail console: send via Feishu SMTP + receive via multi providers."""
+"""Toolkit unified mail console: SMTP send + multi-provider receive."""
 from __future__ import annotations
 
 import json
@@ -50,21 +50,22 @@ ENV = load_env(ENV_PATH)
 for k, v in ENV.items():
     os.environ.setdefault(k, v)
 
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.feishu.cn")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 SMTP_SECURE = os.getenv("SMTP_SECURE", "true").lower() in {"1", "true", "yes"}
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER)
-SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "opcToai")
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Mail Console")
 BIND_HOST = os.getenv("BIND_HOST", "127.0.0.1")
 BIND_PORT = int(os.getenv("BIND_PORT", "18430"))
 LOG_PATH = Path(os.getenv("LOG_PATH", "/var/lib/smtp-console/send.log.jsonl"))
 MAILBOX_STORE = Path(os.getenv("MAILBOX_STORE", "/var/lib/mail-console/mailboxes.json"))
 MAX_RECIPIENTS = int(os.getenv("MAX_RECIPIENTS", "20"))
-TELE_OPC_BASE = os.getenv("TELE_OPC_BASE", "http://127.0.0.1:3100").rstrip("/")
+TELE_OPC_BASE = os.getenv("TELE_OPC_BASE", "").rstrip("/")
 TELE_OPC_DEV_TOKEN = os.getenv("TELE_OPC_DEV_TOKEN", "")
-OPC_MAIL_BASE = os.getenv("OPC_MAIL_BASE", "https://mail.opctoai.xyz").rstrip("/")
+OPC_MAIL_BASE = os.getenv("OPC_MAIL_BASE", "").rstrip("/")
+OPC_MAIL_DOMAINS = [x.strip() for x in os.getenv("OPC_MAIL_DOMAINS", "").split(",") if x.strip()]
 DUCKMAIL_BASE = os.getenv("DUCKMAIL_BASE", "https://api.duckmail.sbs").rstrip("/")
 MAILTM_BASE = os.getenv("MAILTM_BASE", "https://api.mail.tm").rstrip("/")
 TEMPMAIL_BASE = os.getenv("TEMPMAIL_BASE", "https://api.internal.temp-mail.io/api/v3").rstrip("/")
@@ -87,7 +88,7 @@ class SendBody(BaseModel):
 
 
 class CreateMailboxBody(BaseModel):
-    provider: str = "opctoai"
+    provider: str = "custom_mail"
     domain: str | None = None
     name: str | None = None
     label: str | None = None
@@ -407,7 +408,7 @@ def normalize_message(raw: dict[str, Any], provider: str) -> dict[str, Any]:
         html = "\n".join(str(x) for x in html)
     if not text and html:
         text = strip_html(str(html))
-    # mail.opctoai / cloudflare-email often returns raw RFC822 with headers prepended
+    # custom mail / cloudflare-email style providers may return raw RFC822 with headers prepended
     text = strip_email_headers(str(text or ""))
     if html:
         html_text = strip_email_headers(strip_html(str(html)))
@@ -443,11 +444,11 @@ def normalize_message(raw: dict[str, Any], provider: str) -> dict[str, Any]:
 def provider_catalog() -> list[dict[str, Any]]:
     return [
         {
-            "id": "opctoai",
-            "name": "OPC Mail (opctoai.xyz)",
+            "id": "custom_mail",
+            "name": "Custom Mail API",
             "type": "receive",
             "create": True,
-            "note": "自建 mail-api2，Grok OTP 可用；部分来源入站不稳定",
+            "note": "Self-hosted temporary mailbox API (configure OPC_MAIL_BASE)",
             "base": OPC_MAIL_BASE,
         },
         {
@@ -455,7 +456,7 @@ def provider_catalog() -> list[dict[str, Any]]:
             "name": "Mail.tm",
             "type": "receive",
             "create": True,
-            "note": "公共临时邮箱，适合手动注册收验证码",
+            "note": "Public temporary mailbox provider",
             "base": MAILTM_BASE,
         },
         {
@@ -463,7 +464,7 @@ def provider_catalog() -> list[dict[str, Any]]:
             "name": "DuckMail",
             "type": "receive",
             "create": True,
-            "note": "DuckMail / Mail.tm 兼容接口",
+            "note": "Mail.tm-compatible temporary mailbox API",
             "base": DUCKMAIL_BASE,
         },
         {
@@ -471,23 +472,23 @@ def provider_catalog() -> list[dict[str, Any]]:
             "name": "TempMail.io",
             "type": "receive",
             "create": True,
-            "note": "公共临时邮箱（api.internal.temp-mail.io）",
+            "note": "Public temporary mailbox provider",
             "base": TEMPMAIL_BASE,
         },
         {
-            "id": "feishu_smtp",
-            "name": "Feishu SMTP 发信",
+            "id": "smtp_send",
+            "name": "SMTP Sender",
             "type": "send",
             "create": False,
-            "note": "api@opctoai.com:465 给客户发信",
-            "base": f"{SMTP_HOST}:{SMTP_PORT}",
+            "note": "Direct SMTP sending via configured credentials",
+            "base": f"{SMTP_HOST}:{SMTP_PORT}" if SMTP_HOST else "",
         },
         {
-            "id": "teleopc",
-            "name": "Tele-OPC 发信",
+            "id": "remote_send",
+            "name": "Remote Send API",
             "type": "send",
             "create": False,
-            "note": "复用 Tele-OPC / campaign 发信能力",
+            "note": "Optional remote mail-sending service (configure TELE_OPC_BASE)",
             "base": TELE_OPC_BASE,
         },
     ]
@@ -495,6 +496,8 @@ def provider_catalog() -> list[dict[str, Any]]:
 
 def smtp_status() -> dict[str, Any]:
     t0 = time.time()
+    if not SMTP_HOST:
+        return {"ok": False, "latency_ms": 0, "message": "SMTP_HOST is not configured"}
     try:
         if SMTP_SECURE:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ssl.create_default_context(), timeout=12) as s:
@@ -521,6 +524,8 @@ def send_mail(
     html: str,
     from_name: str | None,
 ) -> dict[str, Any]:
+    if not SMTP_HOST:
+        raise ValueError("SMTP_HOST is not configured")
     if not to_list:
         raise ValueError("to is required")
     if len(to_list) + len(cc_list) > MAX_RECIPIENTS:
@@ -531,14 +536,14 @@ def send_mail(
         raise ValueError("text or html is required")
 
     msg = MIMEMultipart("alternative")
-    display_name = (from_name or SMTP_FROM_NAME or "").strip() or "opcToai"
+    display_name = (from_name or SMTP_FROM_NAME or "").strip() or "Mail Console"
     msg["From"] = formataddr((str(Header(display_name, "utf-8")), SMTP_FROM))
     msg["To"] = ", ".join(to_list)
     if cc_list:
         msg["Cc"] = ", ".join(cc_list)
     msg["Subject"] = str(Header(subject.strip(), "utf-8"))
     msg["Date"] = formatdate(localtime=True)
-    msg["Message-ID"] = make_msgid(domain=SMTP_FROM.split("@")[-1] if "@" in SMTP_FROM else "opctoai.com")
+    msg["Message-ID"] = make_msgid(domain=SMTP_FROM.split("@")[-1] if "@" in SMTP_FROM else "localhost")
 
     body_text = text.strip() or re.sub(r"<[^>]+>", " ", html)
     msg.attach(MIMEText(body_text, "plain", "utf-8"))
@@ -579,11 +584,11 @@ def opctoai_create(name: str = "", domain: str = "") -> dict[str, Any]:
     data = http_json("POST", f"{OPC_MAIL_BASE}/accounts", data=payload or {})
     address = data.get("address") or data.get("email") or data.get("id")
     if not address:
-        raise RuntimeError(f"opctoai create failed: {data}")
+        raise RuntimeError(f"custom mail create failed: {data}")
     password = data.get("password") or ""
     token = address  # mail-api2 accepts token=email
     return {
-        "provider": "opctoai",
+        "provider": "custom_mail",
         "address": address,
         "password": password,
         "token": token,
@@ -750,7 +755,7 @@ def tempmailio_messages(box: dict[str, Any]) -> list[dict[str, Any]]:
 def provider_health(provider_id: str) -> dict[str, Any]:
     t0 = time.time()
     try:
-        if provider_id == "opctoai":
+        if provider_id in {"custom_mail", "opctoai"}:
             data = http_json("GET", f"{OPC_MAIL_BASE}/")
             ok = bool(data.get("ok")) if isinstance(data, dict) else True
             return {"id": provider_id, "ok": ok, "latency_ms": int((time.time() - t0) * 1000), "detail": data}
@@ -763,10 +768,10 @@ def provider_health(provider_id: str) -> dict[str, Any]:
         if provider_id == "tempmailio":
             domains = tempmailio_domains()
             return {"id": provider_id, "ok": bool(domains), "latency_ms": int((time.time() - t0) * 1000), "domains": domains[:5]}
-        if provider_id == "feishu_smtp":
+        if provider_id in {"smtp_send", "feishu_smtp"}:
             st = smtp_status()
             return {"id": provider_id, "ok": st["ok"], "latency_ms": st["latency_ms"], "message": st["message"]}
-        if provider_id == "teleopc":
+        if provider_id in {"remote_send", "teleopc"}:
             data = http_json(
                 "GET",
                 f"{TELE_OPC_BASE}/api/web/mail/smtp-status",
@@ -781,8 +786,9 @@ def provider_health(provider_id: str) -> dict[str, Any]:
 
 def create_mailbox(provider: str, name: str = "", domain: str = "", label: str = "") -> dict[str, Any]:
     provider = (provider or "").strip().lower()
-    if provider == "opctoai":
+    if provider in {"custom_mail", "opctoai"}:
         created = opctoai_create(name=name, domain=domain)
+        provider = "custom_mail"
     elif provider == "mailtm":
         created = mailtm_like_create("mailtm", MAILTM_BASE, name=name, domain=domain)
     elif provider == "duckmail":
@@ -809,7 +815,7 @@ def create_mailbox(provider: str, name: str = "", domain: str = "", label: str =
 
 def fetch_messages(box: dict[str, Any]) -> list[dict[str, Any]]:
     provider = (box.get("provider") or "").lower()
-    if provider == "opctoai":
+    if provider in {"custom_mail", "opctoai"}:
         return opctoai_messages(box)
     if provider == "mailtm":
         return mailtm_like_messages("mailtm", MAILTM_BASE, box)
@@ -857,8 +863,8 @@ async def status() -> dict[str, Any]:
             "from": SMTP_FROM,
             "from_name": SMTP_FROM_NAME,
             "user": mask(SMTP_USER),
-            "provider": "feishu",
-            "note": "复用 NewAPI 同一套飞书 SMTP，可给客户发信",
+            "provider": "smtp",
+            "note": "Configured SMTP sender",
         },
         "check": st,
         "providers": provider_catalog(),
@@ -881,8 +887,8 @@ async def api_providers(check: bool = False) -> dict[str, Any]:
 async def api_provider_domains(provider_id: str) -> dict[str, Any]:
     provider_id = provider_id.lower()
     try:
-        if provider_id == "opctoai":
-            domains = ["opctoai.xyz"]
+        if provider_id in {"custom_mail", "opctoai"}:
+            domains = OPC_MAIL_DOMAINS or ([u.split("//",1)[-1].split("/",1)[0] for u in [OPC_MAIL_BASE] if u])
         elif provider_id == "mailtm":
             domains = mailtm_like_domains(MAILTM_BASE)
         elif provider_id == "duckmail":
@@ -1100,7 +1106,7 @@ async def api_import_mailbox(body: ImportMailboxBody) -> JSONResponse:
             "provider": body.provider.strip().lower(),
             "address": address,
             "password": body.password or "",
-            "token": body.token or (address if body.provider.strip().lower() == "opctoai" else ""),
+            "token": body.token or (address if body.provider.strip().lower() in {"custom_mail", "opctoai"} else ""),
             "label": body.label or "",
             "meta": body.meta or {},
             "last_code": "",

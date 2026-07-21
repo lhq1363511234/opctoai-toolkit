@@ -21,6 +21,11 @@ A Docker Compose monorepo that packages two independently deployable tools behin
 - The Grok container includes Xvfb, Chromium, and shared-memory settings suitable for browser-based container workloads.
 - SMTP, mailbox APIs, gateway, proxy, and remote services can be replaced through configuration.
 
+## Module docs
+
+- [SMTP Console bilingual README](apps/smtp/README.md)
+- See `apps/grok/README.md` for the Grok module
+
 ## Quick start
 
 ```bash
