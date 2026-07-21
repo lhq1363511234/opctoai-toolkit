@@ -86,3 +86,22 @@ docker run -d --name grok-register \
 docker build -f apps/grok/Dockerfile -t grok-register:local apps/grok
 GROK_IMAGE=grok-register:local docker compose up -d grok gateway
 ```
+
+---
+
+## 外接配置（不会填请看这里）
+
+容器默认 **外接模式**：邮箱、代理、CPA 都通过 `config.json` 填外部服务，不绑定宿主机 `127.0.0.1`。
+
+详细图文级说明：
+
+- [../EXTERNAL_CONFIG.md](../EXTERNAL_CONFIG.md)
+
+最少必填：
+
+1. `email_provider` + 对应 API（如 `cloudflare_api_base` + `defaultDomains`）
+2. `proxy`（远程 HTTP 代理；能直连 xAI 可留空）
+3. 若要自动进 CLIProxyAPI：`cpa_remote_url` + `cpa_management_key`，且 `cpa_copy_to_hotload=false`
+
+启动后打开 Web → **配置管理** → **测试邮箱** / **测试外接连通性** → 顶部「外接模式就绪」。
+

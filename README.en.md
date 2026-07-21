@@ -34,6 +34,10 @@ A Docker Compose monorepo that packages independently deployable tools behind on
 | Grok module | [apps/grok/README.md](apps/grok/README.md) |
 | Grok Docker packaging | [apps/grok/docker/README.md](apps/grok/docker/README.md) |
 
+## Grok external configuration
+
+Step-by-step form filling (email / proxy / remote CPA): **[apps/grok/EXTERNAL_CONFIG.md](apps/grok/EXTERNAL_CONFIG.md)** (Chinese, detailed).
+
 ## Quick start
 
 ```bash

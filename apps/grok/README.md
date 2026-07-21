@@ -22,6 +22,28 @@
 
 ---
 
+## 外接模式（Web / Docker，不会填配置请先看）
+
+> **大多数「用不了」是配置问题，不是程序坏了。**
+
+完整填表说明（邮箱 / 代理 / 远程 CPA / 常见报错）：
+
+- **中文详细指南**：[EXTERNAL_CONFIG.md](./EXTERNAL_CONFIG.md)
+- 空模板：`config.external.example.json`
+- 带注释模板：`config.example.json`
+- Compose 模板：`../../config/grok/config.json.example`
+- Docker Hub：`cirstein/grok-register-web:latest`
+
+网页路径：`/grok/` 或 `/grok-container/` → **配置管理** → 保存后点：
+
+1. 测试当前邮箱配置  
+2. 测试外接连通性  
+3. 顶部显示「外接模式就绪」再开始注册  
+
+外接原则：**不要**使用 `127.0.0.1` 本机代理 / 本机 cliproxy hotload；邮箱 API、代理、`cpa_remote_url` 全部填可公网（或内网可达的远程）地址。
+
+---
+
 ## 整链示意
 
 ```

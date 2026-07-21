@@ -32,6 +32,7 @@
 | SMTP Console + Cloudflare 完整部署 | [apps/smtp/README.md](apps/smtp/README.md) |
 | Cloudflare Worker 邮件源码 | [apps/cloudflare-mail/README.md](apps/cloudflare-mail/README.md) |
 | Grok 模块 | [apps/grok/README.md](apps/grok/README.md) |
+| **Grok 外接配置（填表详解）** | [apps/grok/EXTERNAL_CONFIG.md](apps/grok/EXTERNAL_CONFIG.md) |
 | Grok Docker 打包说明 | [apps/grok/docker/README.md](apps/grok/docker/README.md) |
 
 ## 快速开始
