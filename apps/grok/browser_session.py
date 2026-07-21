@@ -308,6 +308,34 @@ def _iter_pids_cmdline_contains(substr: str):
         return
 
 
+def reap_zombie_children(max_rounds: int = 64) -> int:
+    """Non-blocking waitpid loop so killed chrome children do not stay <defunct>.
+
+    In the container the web process is often PID1; without wait(), SIGKILL'd
+    chromium/crashpad children become zombies until container restart.
+    """
+    import errno as _errno
+    reaped = 0
+    for _ in range(max(1, int(max_rounds or 1))):
+        progressed = False
+        while True:
+            try:
+                pid, _status = os.waitpid(-1, os.WNOHANG)
+            except ChildProcessError:
+                break
+            except OSError as exc:
+                if getattr(exc, "errno", None) in {_errno.ECHILD, getattr(_errno, "ECHILD", 10)}:
+                    break
+                break
+            if pid <= 0:
+                break
+            reaped += 1
+            progressed = True
+        if not progressed:
+            break
+    return reaped
+
+
 def _kill_pids(pids):
     import signal as _signal
     pids = sorted(set(int(p) for p in pids if int(p) > 1))
@@ -327,6 +355,8 @@ def _kill_pids(pids):
             os.kill(pid, _signal.SIGKILL)
         except Exception:
             pass
+    # Always try to reap; parent may be this process (container PID1 case).
+    reap_zombie_children()
 
 
 def _kill_chrome_by_profile(profile: str):
@@ -340,25 +370,214 @@ def _kill_chrome_by_profile(profile: str):
         pass
 
 
+def _iter_orphan_browser_related_pids(active_profile_markers=None):
+    """Yield chrome/chromium/crashpad PIDs that look like register leftovers.
+
+    When *active_profile_markers* is provided, PIDs whose cmdline contains any
+    marker (live worker profile path) are skipped so reuse browsers are kept.
+    """
+    markers = [str(m) for m in (active_profile_markers or []) if m]
+    my_pid = os.getpid()
+    my_ppid = os.getppid()
+    try:
+        for name in os.listdir("/proc"):
+            if not name.isdigit():
+                continue
+            pid = int(name)
+            if pid in (my_pid, my_ppid, 1):
+                continue
+            try:
+                with open(f"/proc/{pid}/cmdline", "rb") as f:
+                    cmd = f.read()
+            except Exception:
+                continue
+            if not cmd:
+                continue
+            joined = cmd.replace(b"\x00", b" ").decode("utf-8", "ignore")
+            joined_l = joined.lower()
+            try:
+                exe = os.readlink(f"/proc/{pid}/exe")
+            except Exception:
+                exe = ""
+            exe_l = (exe or "").lower()
+            arg0 = cmd.split(b"\x00", 1)[0].decode("utf-8", "ignore").lower()
+
+            is_browser_bin = (
+                "chrome" in exe_l
+                or "chromium" in exe_l
+                or "chrome" in arg0
+                or "chromium" in arg0
+            )
+            is_crashpad = (
+                "chrome_crashpad" in joined_l
+                or "crashpad_handler" in joined_l
+                or "crashpad" in arg0
+            )
+            if not (is_browser_bin or is_crashpad):
+                continue
+
+            # Keep live worker browsers (profile markers still in use).
+            if markers and any(m in joined for m in markers):
+                continue
+
+            # Orphan candidates: register profiles, Drission temp ports, or
+            # crashpad without a matching live profile marker.
+            is_register_profile = (
+                "grok-register-chrome" in joined
+                or "/tmp/drissionpage" in joined_l
+                or "autoportdata" in joined_l
+            )
+            if is_register_profile or is_crashpad:
+                yield pid
+    except Exception:
+        return
+
+
+def cleanup_browser_temp_dirs(
+    log_callback=None,
+    max_age_sec: int = 1800,
+    force: bool = False,
+) -> dict:
+    """Remove stale chromium/Drission/register temp dirs under /tmp.
+
+    Does not touch profiles younger than *max_age_sec* unless force=True.
+    """
+    tmp = tempfile.gettempdir()
+    now = time.time()
+    removed_dirs = 0
+    removed_files = 0
+    patterns_dirs = (
+        "grok-register-chrome",
+        "DrissionPage",
+        "drissionpage",
+    )
+    # Always consider register root
+    roots = []
+    for name in patterns_dirs:
+        p = os.path.join(tmp, name)
+        if os.path.isdir(p):
+            roots.append(p)
+    # Chromium system temp blobs
+    try:
+        for name in os.listdir(tmp):
+            if name.startswith("org.chromium.") or name.startswith(".com.google.Chrome") or name.startswith("chrome_"):
+                roots.append(os.path.join(tmp, name))
+            if name.startswith(".X") and name.endswith("-lock"):
+                # stale Xvfb locks only when force or old
+                roots.append(os.path.join(tmp, name))
+    except Exception:
+        pass
+
+    for path in roots:
+        try:
+            try:
+                age = now - os.path.getmtime(path)
+            except Exception:
+                age = 0
+            if not force and age < max(60, int(max_age_sec or 0)):
+                continue
+            if os.path.isdir(path):
+                # If this is the register root, delete child profiles by age
+                base = os.path.basename(path.rstrip(os.sep))
+                if base in {"grok-register-chrome", "DrissionPage", "drissionpage"} and not force:
+                    try:
+                        for child in os.listdir(path):
+                            cpath = os.path.join(path, child)
+                            try:
+                                cage = now - os.path.getmtime(cpath)
+                            except Exception:
+                                cage = 0
+                            if cage < max(60, int(max_age_sec or 0)):
+                                continue
+                            if os.path.isdir(cpath):
+                                shutil.rmtree(cpath, ignore_errors=True)
+                                removed_dirs += 1
+                            else:
+                                try:
+                                    os.remove(cpath)
+                                    removed_files += 1
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+                else:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path, ignore_errors=True)
+                        removed_dirs += 1
+                    elif os.path.isfile(path) or os.path.islink(path):
+                        try:
+                            os.remove(path)
+                            removed_files += 1
+                        except Exception:
+                            pass
+            elif os.path.isfile(path) or os.path.islink(path):
+                try:
+                    os.remove(path)
+                    removed_files += 1
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    stats = {"removed_dirs": removed_dirs, "removed_files": removed_files}
+    if log_callback and (removed_dirs or removed_files):
+        log_callback(
+            f"[*] 临时目录清理: dirs={removed_dirs} files={removed_files} force={bool(force)}"
+        )
+    return stats
+
+
 def cleanup_orphan_register_browsers(log_callback=None, force: bool = True) -> int:
-    """关闭/清理 /tmp/grok-register-chrome 下残留注册浏览器。
+    """关闭/清理注册浏览器残留（profile + crashpad + 临时目录）。
 
     多线程停止时 thread-local quit 可能漏掉孤儿进程，这里做全局兜底。
     返回清理到的 profile 目录数（估算）。
-    只杀 chrome/chromium 进程，避免 pkill -f 误伤管理脚本。
+
+    force=True: 结束任务/停止时使用，可杀全部注册相关浏览器并强清 tmp。
+    force=False: 仅清理明显孤儿与过期 tmp，尽量不碰仍在复用的 worker 浏览器。
     """
     if _debug() and not force:
         return 0
+
     root = register_chrome_root()
+    # Live profile markers: keep when not force (worker reuse path).
+    active_markers = []
+    if not force and os.path.isdir(root):
+        try:
+            for name in os.listdir(root):
+                p = os.path.join(root, name)
+                if os.path.isdir(p):
+                    # recently touched profiles are treated as possibly live
+                    try:
+                        if time.time() - os.path.getmtime(p) < 600:
+                            active_markers.append(p)
+                    except Exception:
+                        active_markers.append(p)
+        except Exception:
+            pass
+    # also keep current thread profile
+    cur_profile = getattr(_tls, "profile_dir", None)
+    if cur_profile:
+        active_markers.append(str(cur_profile))
+
     # kill chrome processes bound to register profiles even if root already gone
     _kill_pids(list(_iter_pids_cmdline_contains("grok-register-chrome")))
     if root:
         _kill_pids(list(_iter_pids_cmdline_contains(root)))
+    # crashpad / Drission leftovers (skip live markers unless force)
+    orphan_pids = list(
+        _iter_orphan_browser_related_pids(None if force else active_markers)
+    )
+    if orphan_pids:
+        _kill_pids(orphan_pids)
+
     count = 0
     if os.path.isdir(root):
         try:
             for name in os.listdir(root):
                 path = os.path.join(root, name)
+                if not force and path in active_markers:
+                    continue
                 if os.path.isdir(path):
                     count += 1
                     shutil.rmtree(path, ignore_errors=True)
@@ -370,12 +589,87 @@ def cleanup_orphan_register_browsers(log_callback=None, force: bool = True) -> i
         except Exception:
             pass
         try:
-            os.rmdir(root)
+            if force or not os.listdir(root):
+                os.rmdir(root)
         except Exception:
             pass
+
+    # tmp sweep: force on stop/end; otherwise age-based
+    tmp_stats = cleanup_browser_temp_dirs(
+        log_callback=log_callback,
+        max_age_sec=120 if force else 1800,
+        force=bool(force),
+    )
+    reaped = reap_zombie_children()
     if log_callback:
-        log_callback(f"[*] 已清理残留注册浏览器目录: {count}")
+        log_callback(
+            f"[*] 已清理残留注册浏览器目录: {count}; "
+            f"tmp_dirs={tmp_stats.get('removed_dirs', 0)} "
+            f"reaped_zombies={reaped}"
+        )
     return count
+
+
+_reaper_thread = None
+_reaper_stop = threading.Event()
+
+
+def start_background_reaper(interval_sec: float = 45.0, log_callback=None):
+    """Daemon reaper: waitpid zombies + age-based tmp cleanup; never force-kills live workers."""
+    global _reaper_thread
+    if _reaper_thread is not None and _reaper_thread.is_alive():
+        return _reaper_thread
+
+    def _loop():
+        while not _reaper_stop.is_set():
+            try:
+                reaped = reap_zombie_children()
+                # soft cleanup only
+                cleanup_browser_temp_dirs(max_age_sec=1800, force=False)
+                # kill clearly orphan crashpads with no active young profiles
+                soft_pids = list(_iter_orphan_browser_related_pids(active_profile_markers=[]))
+                # Only kill crashpad-looking orphans in soft mode to avoid killing reuse browsers
+                crash_only = []
+                for pid in soft_pids:
+                    try:
+                        with open(f"/proc/{pid}/cmdline", "rb") as f:
+                            cmd = f.read().replace(b"\x00", b" ").decode("utf-8", "ignore").lower()
+                    except Exception:
+                        continue
+                    if "crashpad" in cmd:
+                        # skip if any young register profile exists (workers running)
+                        root = register_chrome_root()
+                        young = False
+                        if os.path.isdir(root):
+                            try:
+                                for name in os.listdir(root):
+                                    p = os.path.join(root, name)
+                                    try:
+                                        if time.time() - os.path.getmtime(p) < 900:
+                                            young = True
+                                            break
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                        if not young:
+                            crash_only.append(pid)
+                if crash_only:
+                    _kill_pids(crash_only)
+                if log_callback and reaped:
+                    log_callback(f"[reaper] reaped_zombies={reaped}")
+            except Exception:
+                pass
+            _reaper_stop.wait(max(15.0, float(interval_sec or 45.0)))
+
+    _reaper_stop.clear()
+    _reaper_thread = threading.Thread(target=_loop, name="grok-browser-reaper", daemon=True)
+    _reaper_thread.start()
+    return _reaper_thread
+
+
+def stop_background_reaper():
+    _reaper_stop.set()
 
 
 
@@ -397,6 +691,7 @@ def cleanup_runtime_memory(log_callback=None, reason="定期清理"):
             log_callback(f"[*] {reason}: 关闭浏览器并清理内存")
         stop_browser(force=True)
         cleanup_orphan_register_browsers(log_callback=log_callback, force=True)
+        reap_zombie_children()
         collected = gc.collect()
         if log_callback:
             log_callback(f"[*] Python GC 已回收对象数: {collected}")

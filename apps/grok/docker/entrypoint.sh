@@ -6,6 +6,21 @@ cd /app
 # Prefer env overrides for container networking
 export DISPLAY="${DISPLAY:-:99}"
 export PORT="${PORT:-18425}"
+DISPLAY_NUM="${DISPLAY#:}"
+
+cleanup_on_exit() {
+  # Best-effort: kill leftover browsers and reap; parent exiting also reaps zombies.
+  pkill -9 -f 'chromium|chrome|chrome_crashpad' 2>/dev/null || true
+  # clear common temp leftovers
+  rm -rf /tmp/grok-register-chrome /tmp/DrissionPage /tmp/org.chromium.* 2>/dev/null || true
+  rm -f "/tmp/.X${DISPLAY_NUM}-lock" "/tmp/.X11-unix/X${DISPLAY_NUM}" 2>/dev/null || true
+}
+trap cleanup_on_exit EXIT INT TERM
+
+# Clear stale Xvfb locks from previous container generation
+rm -f "/tmp/.X${DISPLAY_NUM}-lock" "/tmp/.X11-unix/X${DISPLAY_NUM}" 2>/dev/null || true
+# Also sweep common display locks left by older images (e.g. :98)
+rm -f /tmp/.X[0-9]*-lock 2>/dev/null || true
 
 # Start virtual display for headed Chromium/DrissionPage flows
 if ! pgrep -x Xvfb >/dev/null 2>&1; then
@@ -46,14 +61,18 @@ shift || true
 case "$mode" in
   web)
     # Bind all interfaces inside container
+    # Use python -c so PID is python (still may be PID1); reaper thread handles zombies.
     exec python - <<'PY'
 import os
-from pathlib import Path
 import web_app
+from browser_session import start_background_reaper
 
-# monkeypatch host/port for container use without editing source permanently
 host = os.getenv("HOST", "0.0.0.0")
 port = int(os.getenv("PORT", "18425"))
+try:
+    start_background_reaper(interval_sec=45.0)
+except Exception as exc:
+    print(f"[entrypoint] reaper start failed: {exc}", flush=True)
 print(f"[entrypoint] starting grok web on {host}:{port}", flush=True)
 web_app.app.run(host=host, port=port, threaded=True)
 PY

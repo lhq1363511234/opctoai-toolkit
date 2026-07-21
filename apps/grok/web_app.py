@@ -50,6 +50,13 @@ _run_lock = threading.Lock()
 _running = False
 _stats = dict(reg_success=0, reg_fail=0, mint_success=0, mint_fail=0, mint_skip=0)
 _cancel_event = threading.Event()
+
+# Container/host web process may be PID1 for chrome children; reap zombies + stale tmp.
+try:
+    from browser_session import start_background_reaper
+    start_background_reaper(interval_sec=45.0)
+except Exception:
+    pass
 _runner_controller = None
 
 
@@ -370,10 +377,21 @@ def _run_registration(extra: int, workers: int):
     finally:
         # 任务结束/停止后兜底清理残留浏览器，避免多 worker 遗留 chromium
         try:
-            from browser_session import cleanup_orphan_register_browsers
+            from browser_session import (
+                cleanup_orphan_register_browsers,
+                cleanup_browser_temp_dirs,
+                reap_zombie_children,
+            )
             n = cleanup_orphan_register_browsers(force=True) or 0
-            if n:
-                _broadcast(dict(ts=time.strftime("%H:%M:%S"), msg=f"[Web] 结束兜底清理残留浏览器: {n}"))
+            tmp = cleanup_browser_temp_dirs(force=True, max_age_sec=60)
+            z = reap_zombie_children()
+            _broadcast(dict(
+                ts=time.strftime("%H:%M:%S"),
+                msg=(
+                    f"[Web] 结束兜底清理: browser_dirs={n} "
+                    f"tmp_dirs={tmp.get('removed_dirs', 0)} zombies={z}"
+                ),
+            ))
         except Exception as exc:
             _broadcast(dict(ts=time.strftime("%H:%M:%S"), msg=f"[Web] 结束清理浏览器失败: {exc}"))
         with _run_lock:
@@ -568,9 +586,21 @@ def api_stop():
     # 停止时立刻清理残留注册浏览器（不等待 worker 优雅退出）
     cleaned = 0
     try:
-        from browser_session import cleanup_orphan_register_browsers
+        from browser_session import (
+            cleanup_orphan_register_browsers,
+            cleanup_browser_temp_dirs,
+            reap_zombie_children,
+        )
         cleaned = cleanup_orphan_register_browsers(force=True) or 0
-        _broadcast(dict(ts=time.strftime("%H:%M:%S"), msg=f"[Web] 停止：已清理残留注册浏览器({cleaned})"))
+        tmp = cleanup_browser_temp_dirs(force=True, max_age_sec=60)
+        z = reap_zombie_children()
+        _broadcast(dict(
+            ts=time.strftime("%H:%M:%S"),
+            msg=(
+                f"[Web] 停止清理: browser_dirs={cleaned} "
+                f"tmp_dirs={tmp.get('removed_dirs', 0)} zombies={z}"
+            ),
+        ))
     except Exception as exc:
         _broadcast(dict(ts=time.strftime("%H:%M:%S"), msg=f"[Web] 停止清理浏览器失败: {exc}"))
     return jsonify(dict(ok=True, cleaned_browser_dirs=cleaned))
